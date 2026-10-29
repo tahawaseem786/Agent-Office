@@ -35,7 +35,11 @@ h2{font-size:13px;color:var(--cyan)} h3{font-size:12px;color:var(--yellow)}
 .chip.walking small{color:var(--cyan)}
 .chip.sel{outline:1px solid var(--cyan)}
 .cv{border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#05090f}
-#office{display:block;width:100%;height:auto;image-rendering:pixelated;cursor:pointer}
+#office{display:block;width:100%;aspect-ratio:1500/668;cursor:pointer}
+.cv{position:relative}
+.zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.zoom button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#0b1626cc;color:var(--white);font-size:16px}
+.hint3d{position:absolute;left:10px;bottom:8px;font-size:11px;color:#9fb7d4aa;pointer-events:none}
 .brain{position:relative;padding:16px;display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;min-height:200px}
 .brain svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .nodes{display:flex;flex-direction:column;gap:12px;z-index:1}
@@ -103,7 +107,7 @@ dialog::backdrop{background:#000b}
   <div class="col">
     <section class="card office">
       <div class="ohead"><h2>AI Agent Office</h2><div class="roster" id="roster"></div></div>
-      <div class="cv"><canvas id="office" width="1520" height="744"></canvas></div>
+      <div class="cv"><canvas id="office"></canvas></div>
     </section>
     <section class="card sheet">
       <div class="shead">
@@ -178,7 +182,8 @@ dialog::backdrop{background:#000b}
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const nap=ms=>new Promise(r=>setTimeout(r,ms));
+const sleep=ms=>document.hidden?Promise.resolve():nap(ms);
 function shade(hex,amt){const n=parseInt(hex.slice(1),16);const f=v=>Math.max(0,Math.min(255,v+amt));return '#'+((f(n>>16)<<16)|(f((n>>8)&255)<<8)|f(n&255)).toString(16).padStart(6,'0')}
 
 /* ================= SETTINGS & DATA ================= */
@@ -281,6 +286,10 @@ const PEOPLE0=[
   {key:'adv3',room:'adv',cab:2,name:'Danish',role:'Advanced analyst. Risks: patents, gating, seasonality, sourcing and quality.',shirt:'#e0a458',pants:'#33302a',skin:'#b98058',hair:'#0e0905',style:'curly'}
 ];
 const HUNTERS=['hunt1','hunt2','hunt3'],ANALYSTS=['adv1','adv2','adv3'];
+const SKILL0={manager:'Managing the team: understanding the boss, giving work to the right department, and reporting back',research:'Research: facts, trends, competitors and market data',
+  content:'Writing: product listings, captions, scripts, emails and posts',marketing:'Marketing: ads, audiences, offers, pricing and launch plans',review:'Quality review: checking work, finding mistakes and risks',
+  records:'Records: filing work into the sheet and reading numbers from it',hunt1:'Amazon product hunting (home, kitchen, organization)',hunt2:'Amazon product hunting (pets, sports, fitness, outdoor)',
+  hunt3:'Amazon product hunting (office, travel, baby non-gated, gifts)',adv1:'Advanced testing of Amazon products: profit, ROI, PPC and final selection',adv2:'Advanced testing of Amazon products: competition and reviews',adv3:'Advanced testing of Amazon products: risks, patents, gating and sourcing'};
 const FEMALE=new Set(['content','marketing','records','hunt3','adv2']);
 const ALIASES={manager:['आरिफ','عارف','aarif'],research:['अली','علی'],content:['सारा','سارہ','sarah'],marketing:['ज़ारा','जारा','زارا','zahra'],review:['हमज़ा','हमजा','حمزہ'],records:['नादिया','نادیہ'],
   hunt1:['बिलाल','بلال'],hunt2:['उस्मान','عثمان'],hunt3:['फातिमा','फ़ातिमा','فاطمہ'],adv1:['कामरान','کامران'],adv2:['आयशा','आइशा','عائشہ','aisha'],adv3:['दानिश','دانش']};
@@ -288,7 +297,7 @@ const FRIENDS=[['research','content'],['marketing','hunt3'],['hunt1','hunt2'],['
 const friendOf=p=>{const f=FRIENDS.find(x=>x.includes(p.key));return f?P[f[0]===p.key?f[1]:f[0]].name:'everyone'};
 const P={};
 PEOPLE0.forEach((d,i)=>{
-  const o=Object.assign({},d,S.people[d.key]||{}),cab=makeCab(ROOMS[d.room],d.cab||0);
+  const o=Object.assign({skill:SKILL0[d.key]},d,S.people[d.key]||{}),cab=makeCab(ROOMS[d.room],d.cab||0);
   P[d.key]=Object.assign(o,{cabRef:cab,x:cab.seat.x,y:cab.seat.y,room:d.room,seated:true,dir:'down',path:[],dist:0,exitVia:cab.exitSeat,
     lock:Promise.resolve(),typing:false,carry:false,bubble:null,job:false,lane:(i%3)-1,vOff:((i%5)-2)*11,seed:Math.random()});
 });
@@ -302,9 +311,19 @@ function walkTo(p,roomKey,entry,exitAfter,after){
     if(p.room!==roomKey){const s=ROOMS[p.room],d=ROOMS[roomKey],L=LANE+p.lane*12;pts.push(s.doorIn,s.doorOut,pt(s.doorOut.x,L),pt(d.doorOut.x,L),d.doorOut,d.doorIn)}
     pts.push(...entry);
     p.onArrive=()=>{p.room=roomKey;p.exitVia=exitAfter;p.onArrive=null;after&&after();res()};
-    p.path=pts.map(q=>pt(q.x,q.y));if(!p.path.length)p.onArrive();
+    p.path=pts.map(q=>pt(q.x,q.y));if(!p.path.length)p.onArrive();else if(document.hidden)finishWalk(p);
   });
 }
+function finishWalk(p){if(!p.path.length)return;const q=p.path[p.path.length-1];p.x=q.x;p.y=q.y;p.path=[];p.onArrive&&p.onArrive()}
+let awaySince=0,awayLogs=0;
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){awaySince=Date.now();awayLogs=0;Object.values(P).forEach(finishWalk);
+    if(office.busy)console.log('Office keeps working in the background');}
+  else if(awaySince){const mins=Math.round((Date.now()-awaySince)/60000);if(awayLogs>0)log('System',`Welcome back, boss! While you were away (${mins} min) the team posted ${awayLogs} updates. Scroll up in Activity to read them.`,'#5dff8f');awaySince=0;requestWake()}
+});
+let wakeLock=null;
+async function requestWake(){try{if(office.busy&&'wakeLock' in navigator&&!document.hidden&&!wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null})}}catch(e){}}
+function releaseWake(){try{wakeLock&&wakeLock.release();wakeLock=null}catch(e){}}
 function goSeat(p){if(p.seated)return Promise.resolve();const c=p.cabRef;return walkTo(p,c.room,c.enterSeat,c.exitSeat,()=>{p.seated=true;p.dir='down'})}
 function goVisit(p,q){const c=q.cabRef,e=c.enterVisit.map(v=>pt(v.x,v.y));e[e.length-1].x+=p.vOff;return walkTo(p,c.room,e,c.exitVisit,()=>{p.dir='up'})}
 function goSpot(p,roomKey,s,face){return walkTo(p,roomKey,[s],[],()=>{if(face)p.dir=face})}
@@ -314,10 +333,10 @@ function say(p,text,ms){p.bubble={text,until:performance.now()+ms}}
 function randomSpot(key){const r=ROOMS[key];return pt(r.x+34+Math.random()*(r.w-68),r.zone[0]+Math.random()*(r.zone[1]-r.zone[0]))}
 
 async function idleLoop(p){
-  await sleep(3000+Math.random()*9000);
+  await nap(3000+Math.random()*9000);
   for(;;){
-    await sleep(7000+Math.random()*11000);
-    if(office.busy||office.meeting||p.job||p.social||p.path.length)continue;
+    await nap(7000+Math.random()*11000);
+    if(document.hidden||office.busy||office.meeting||p.job||p.social||p.path.length)continue;
     const r=Math.random();if(r<0.42)continue;
     await act(p,async()=>{
       if(office.busy||office.meeting||p.job||p.social)return;
@@ -329,89 +348,153 @@ async function idleLoop(p){
   }
 }
 
-/* ================= DRAWING ================= */
-const cv=$('office'),g=cv.getContext('2d');g.imageSmoothingEnabled=false;
-const bg=document.createElement('canvas');bg.width=W;bg.height=H;const b=bg.getContext('2d');
-const R=(c,x,y,w,h,col)=>{c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))};
-function plant(x,y){R(b,x+4,y+16,14,12,'#7a4a2a');R(b,x+4,y+16,14,3,'#8f5a34');R(b,x+1,y+5,20,12,'#2f9e5a');R(b,x+5,y-2,12,9,'#46c86e');R(b,x+9,y-7,4,6,'#5dff8f')}
-function shelf(x,y,w){R(b,x,y,w,30,'#5a3d26');R(b,x,y+14,w,2,'#3e2a1a');const cs=['#d64545','#4a7fd4','#e9c46a','#3fbf7f','#c792ff','#f28c38'];for(let i=0;i<w/8-1;i++){R(b,x+3+i*8,y+3,6,11,cs[i%6]);R(b,x+3+i*8,y+17,6,11,cs[(i+3)%6])}}
-function board(x,y,w,chart){R(b,x,y,w,32,'#9aa8b8');R(b,x+2,y+2,w-4,28,'#f1f5f9');if(chart){[10,16,8,20,24].forEach((v,i)=>R(b,x+8+i*11,y+28-v,7,v,i%2?'#ff7ad9':'#46e6ff'))}else{R(b,x+6,y+8,w*.55,2,'#4a7fd4');R(b,x+6,y+14,w*.35,2,'#d64545');R(b,x+6,y+20,w*.45,2,'#4a7fd4')}}
-function cabinet(x,y){R(b,x,y,24,38,'#5f6d80');for(let i=0;i<3;i++){R(b,x+2,y+3+i*12,20,10,'#7f8ea3');R(b,x+9,y+7+i*12,6,2,'#c9d3df')}}
-function boxes(x,y){R(b,x,y,28,22,'#b7854e');R(b,x,y+9,28,3,'#e8d3a8');R(b,x+6,y-16,24,18,'#c49359');R(b,x+6,y-9,24,3,'#e8d3a8')}
-function sofa(x,y,w,c){R(b,x,y,w,10,shade(c,-25));R(b,x,y+9,w,14,c);R(b,x-5,y+3,7,20,shade(c,-35));R(b,x+w-2,y+3,7,20,shade(c,-35))}
-function rug(x,y,w,h,c){R(b,x,y,w,h,c);R(b,x+4,y+4,w-8,h-8,shade(c,12));R(b,x+8,y+8,w-16,h-16,c)}
-function table(x,y,w,h){R(b,x,y,w,h,'#8a6642');R(b,x,y+h,w,5,'#5f4529')}
-function stool(x,y){R(b,x,y,12,10,'#2b3445');R(b,x+2,y+10,8,4,'#1b2230')}
-function neon(c,text,x,y,size,color){c.save();c.font=`${size}px Silkscreen, monospace`;c.textAlign='center';c.textBaseline='middle';c.shadowColor=color;c.shadowBlur=12;c.fillStyle=color;c.fillText(text,x,y);c.shadowBlur=0;c.fillStyle='#fff8';c.fillText(text,x,y);c.restore()}
+/* ================= 3D OFFICE (isometric renderer) ================= */
+const cv=$('office'),g=cv.getContext('2d');
+const KY=0.8,KZ=0.9,OX=-10,OY=82,BGW=1500,BGH=668,WALL=84,DOORH=66;
+const pr=(x,y,z=0)=>[x+OX,y*KY-z*KZ+OY];
+const V={z:1,px:0,py:0,user:false,dpr:1};
+const setT=(a,b,c,d,e,f)=>g.setTransform(a*V.z,b*V.z,c*V.z,d*V.z,e*V.z+V.px,f*V.z+V.py);
+let sd=7;const rnd=()=>(sd=(sd*16807)%2147483647)/2147483647;
+function poly(c,pts,fill,stroke,lw){c.beginPath();pts.forEach((q,i)=>i?c.lineTo(q[0],q[1]):c.moveTo(q[0],q[1]));c.closePath();if(fill){c.fillStyle=fill;c.fill()}if(stroke){c.strokeStyle=stroke;c.lineWidth=lw||1;c.stroke()}}
+function box(c,x0,y0,x1,y1,z0,z1,col,o={}){
+  poly(c,[pr(x1,y0,z0),pr(x1,y1,z0),pr(x1,y1,z1),pr(x1,y0,z1)],o.east||shade(col,-40));
+  poly(c,[pr(x0,y1,z0),pr(x1,y1,z0),pr(x1,y1,z1),pr(x0,y1,z1)],o.south||shade(col,-16));
+  poly(c,[pr(x0,y0,z1),pr(x1,y0,z1),pr(x1,y1,z1),pr(x0,y1,z1)],o.top||shade(col,14),o.edge);
+}
+const planeY=(c,y,x0,x1,z0,z1,fill,stroke)=>poly(c,[pr(x0,y,z0),pr(x1,y,z0),pr(x1,y,z1),pr(x0,y,z1)],fill,stroke);
+const planeX=(c,x,y0,y1,z0,z1,fill,stroke)=>poly(c,[pr(x,y0,z0),pr(x,y1,z0),pr(x,y1,z1),pr(x,y0,z1)],fill,stroke);
+function textY(c,y,x,z,text,size,color,glow,align){
+  c.save();c.transform(1,0,0,KZ,OX,y*KY+OY);c.font=`${size}px Silkscreen, monospace`;c.textAlign=align||'center';c.textBaseline='middle';
+  if(glow){c.shadowColor=color;c.shadowBlur=12}c.fillStyle=color;c.fillText(text,x,-z);c.restore();
+}
+function textW(c,text,size){c.save();c.font=`${size}px Silkscreen, monospace`;const w=c.measureText(text).width;c.restore();return w}
 
-function buildBG(){
-  R(b,0,0,W,H,'#04070d');
-  R(b,X0,CY,W-2*X0,100,'#121a28');for(let x=X0;x<W-X0;x+=32)R(b,x,CY,1,100,'#16202f');
-  R(b,X0,LANE-12,W-2*X0,24,'#17233a');R(b,X0,LANE-12,W-2*X0,2,'#1d2c47');R(b,X0,LANE+10,W-2*X0,2,'#1d2c47');
-  Object.values(ROOMS).forEach(r=>{
-    for(let yy=r.y;yy<r.y+r.h;yy+=16)for(let xx=r.x;xx<r.x+r.w;xx+=16)R(b,xx,yy,16,16,r.floor[((xx-r.x)/16+(yy-r.y)/16)%2]);
-    if(r.cabins)drawCabins(r);decor(r);
+/* ---- static scene ---- */
+const STATIC=[];const add=(k,f)=>STATIC.push({k,f});
+function plantAt(x,y,s=1){add(y+10,()=>{box(g,x,y,x+12*s,y+12*s,0,12*s,'#8a5a35');const [cx,cy]=pr(x+6*s,y+6*s,12*s);
+  [[0,-8,11,'#2f8f52'],[-6,-14,8,'#3aa862'],[6,-15,8,'#46c06f'],[0,-22,7,'#5ad17f']].forEach(([dx,dy,r,c])=>{g.fillStyle=c;g.beginPath();g.arc(cx+dx*s,cy+dy*s,r*s,0,7);g.fill()})})}
+function shelfAt(x,y,w){add(y+6,()=>{box(g,x,y,x+w,y+10,0,62,'#5a3d26');const cs=['#d64545','#4a7fd4','#e9c46a','#3fbf7f','#c792ff','#f28c38'];
+  for(let i=0;i<w/7-1;i++)[[6,26],[34,56]].forEach(([a,b2],j)=>planeY(g,y+10,x+3+i*7,x+8+i*7,a,b2-(i%3)*2,cs[(i+j*3)%6]));planeY(g,y+10,x,x+w,30,32,'#3e2a1a')})}
+function cabinetAt(x,y){add(y+8,()=>{box(g,x,y,x+24,y+16,0,40,'#6c7a8c');for(let i=0;i<3;i++){planeY(g,y+16,x+2,x+22,3+i*12,12+i*12,'#8796aa');planeY(g,y+16,x+9,x+15,7+i*12,8+i*12,'#dfe6ee')}})}
+function boxesAt(x,y){add(y+11,()=>{box(g,x,y,x+28,y+22,0,20,'#b7854e');planeY(g,y+22,x,x+28,9,12,'#e8d3a8');box(g,x+4,y+3,x+24,y+19,20,36,'#c49359');planeY(g,y+19,x+4,x+24,26,29,'#e8d3a8')})}
+function sofaAt(x,y,w,c){add(y+12,()=>{box(g,x,y,x+w,y+8,0,30,shade(c,-10));box(g,x,y+8,x+w,y+26,0,14,c);box(g,x-6,y,x,y+26,0,20,shade(c,-25));box(g,x+w,y,x+w+6,y+26,0,20,shade(c,-25))})}
+function tableAt(x,y,w,d,col='#8a6642'){add(y+d/2,()=>{box(g,x+w/2-4,y+d/2-4,x+w/2+4,y+d/2+4,0,22,'#3a3a44');box(g,x,y,x+w,y+d,22,26,col)})}
+function stoolAt(x,y){add(y+6,()=>{box(g,x+4,y+4,x+8,y+8,0,12,'#333a48');box(g,x,y,x+12,y+12,12,15,'#2b3445')})}
+function boardStand(x,y,w,chart){add(y+3,()=>{box(g,x+4,y,x+7,y+4,0,30,'#555');box(g,x+w-7,y,x+w-4,y+4,0,30,'#555');box(g,x,y,x+w,y+3,28,64,'#e8eef5');
+  if(chart)[10,18,8,22,28].forEach((v,i)=>planeY(g,y+3,x+8+i*(w-16)/5,x+8+i*(w-16)/5+(w-16)/7,32,32+v,i%2?'#ff7ad9':'#46e6ff'));else{planeY(g,y+3,x+6,x+w*.6,52,54,'#4a7fd4');planeY(g,y+3,x+6,x+w*.4,44,46,'#d64545');planeY(g,y+3,x+6,x+w*.5,36,38,'#4a7fd4')}})}
+
+function glassY(y,x0,x1,z0=0,z1=WALL){for(let a=x0;a<x1-0.5;a+=24){const b2=Math.min(x1,a+24);add(y-2+(a+b2)*1e-5,()=>{
+  const lite=y===BY;planeY(g,y,a,b2,z0,z1,lite?'rgba(160,210,255,0.04)':'rgba(160,210,255,0.09)');poly(g,[pr(a,y,z1),pr(b2,y,z1)],null,'#a9c3e3',2);
+  if(z0===0)planeY(g,y,a,b2,0,4,'#4f617a');poly(g,[pr(a,y,z0),pr(a,y,z1)],null,'rgba(200,225,255,0.28)',1);
+  if(!lite)poly(g,[pr(a+4,y,z1-6),pr(a+12,y,z1-30)],null,'rgba(255,255,255,0.10)',2)})}}
+function glassX(x,y0,y1){for(let a=y0;a<y1-0.5;a+=24){const b2=Math.min(y1,a+24);add((a+b2)/2-2+x*1e-5,()=>{
+  planeX(g,x,a,b2,0,WALL,'rgba(160,210,255,0.08)');poly(g,[pr(x,a,WALL),pr(x,b2,WALL)],null,'#a9c3e3',2);planeX(g,x,a,b2,0,4,'#4f617a');
+  poly(g,[pr(x,a,0),pr(x,a,WALL)],null,'rgba(200,225,255,0.25)',1)})}}
+function glassLineY(y,x0,x1,gaps){
+  let a=x0;gaps.sort((p,q)=>p[0]-q[0]).forEach(([g0,g1])=>{glassY(y,a,g0);glassY(y,g0,g1,DOORH,WALL);
+    add(y,()=>box(g,g0-3,y-3,g0,y+3,0,WALL,'#8aa0c0'));add(y,()=>box(g,g1,y-3,g1+3,y+3,0,WALL,'#8aa0c0'));a=g1});
+  glassY(y,a,x1);
+}
+function buildStatic(){
+  STATIC.length=0;sd=7;
+  const top=Object.values(ROOMS).filter(r=>!r.row);
+  // outer walls
+  add(-1e9,()=>{box(g,10,30,1510,44,0,WALL,'#2a3850');planeY(g,44,10,1510,0,5,'#1b2536');
+    top.forEach(r=>{const n=r.span*3,ww=44;for(let i=0;i<n;i++){const wx=r.x+18+i*(r.w-36)/n+((r.w-36)/n-ww)/2;
+      if(r.key==='research'&&i===0||r.key==='marketing'&&i===0)continue;
+      planeY(g,44,wx,wx+ww,24,72,'#22416e');planeY(g,44,wx,wx+ww,24,40,'#e07a5f55');planeY(g,44,wx,wx+ww,24,30,'#f4a26166');
+      for(let k=0;k<5;k++){const lx=wx+4+((i*7+k*13)%36),lz=27+((k*11+i*5)%12);planeY(g,44,lx,lx+2,lz,lz+2,'#ffe08a')}
+      poly(g,[pr(wx,44,24),pr(wx+ww,44,24),pr(wx+ww,44,72),pr(wx,44,72)],null,'#8aa0c0',2);poly(g,[pr(wx+ww/2,44,24),pr(wx+ww/2,44,72)],null,'#8aa0c0',1.5)}});
+    // wall boards
+    [['research',20,70],['marketing',20,70,true]].forEach(([k,ox,w,ch])=>{const r=ROOMS[k],x=r.x+ox;planeY(g,44.5,x,x+w,30,64,'#e8eef5','#9aa8b8');
+      if(ch)[10,16,8,20,24].forEach((v,i)=>planeY(g,44.5,x+8+i*11,x+15+i*11,33,33+v,i%2?'#ff7ad9':'#46e6ff'));else{planeY(g,44.5,x+6,x+40,54,56,'#4a7fd4');planeY(g,44.5,x+6,x+30,46,48,'#d64545')}})});
+  add(-1e9+1,()=>box(g,10,30,16,730,0,WALL,'#2a3850'));
+  add(1e9,()=>box(g,10,724,1510,730,0,12,'#2a3850'));add(1e9+1,()=>box(g,1504,30,1510,730,0,12,'#2a3850'));
+  // corridor glass + dividers
+  glassLineY(CY,16,1504,Object.values(ROOMS).filter(r=>!r.row).map(r=>[r.dx-20,r.dx+20]));
+  glassLineY(BY,16,1504,Object.values(ROOMS).filter(r=>r.row).map(r=>[r.dx-20,r.dx+20]));
+  [1,2,4,5].forEach(k=>{const x=X0+k*RW;glassX(x,TY,CY);glassX(x,BY,BY+BH)});
+  // cabins
+  ['hunt','adv'].forEach(key=>{const r=ROOMS[key],cw=(r.w-12)/3,y0=r.row?r.fy:TY,y1=r.row?BY+BH:r.fy;
+    for(let i=1;i<3;i++)glassX(r.x+6+i*cw,y0,y1);
+    glassLineY(r.fy,r.x+6,r.x+r.w-6,r.cabs.map(c=>[c.cdx-13,c.cdx+13]));
+    r.cabs.forEach((c,i)=>{const px=c.cx0+12,tx='CABIN '+(i+1);add(r.fy+1,()=>{const w=textW(g,tx,9)+10;planeY(g,r.fy,px,px+w,54,64,shade(r.accent,-110));textY(g,r.fy,px+w/2,59,tx,9,r.accent)})});
+    r.cabs.forEach(c=>{if(r.row){plantAt(c.cx0+c.cw-26,r.y+r.h-36)}else{boxesAt(c.cx0+c.cw-40,r.y+12)}});
   });
-  Object.values(ROOMS).forEach(r=>{
-    const wc='#3d5170',T=6;
-    R(b,r.x,r.y-(r.row?0:T),r.w,T,r.row?wc:'#56709a');R(b,r.x,r.y+r.h-(r.row?T:0),r.w,T,wc);
-    R(b,r.x,r.y,T,r.h,wc);R(b,r.x+r.w-T,r.y,T,r.h,wc);
-    R(b,r.dx-20,r.row?r.wallY:r.wallY-T,40,T,'#121a28');
-    b.font='10px Silkscreen, monospace';b.textBaseline='middle';const label=r.cabins?r.name.toUpperCase():r.name,tw=b.measureText(label).width+12;
-    const py=r.row?r.wallY-14:r.wallY-2,px=r.dx-26-tw;
-    R(b,px,py,tw,16,shade(r.accent,-110));R(b,px,py,tw,2,r.accent);b.fillStyle=r.accent;b.fillText(label,px+6,py+9);
-  });
-  Object.values(ROOMS).filter(r=>!r.row).forEach(r=>{for(let i=0;i<r.span*3;i++){R(b,r.x+24+i*72,r.y-6,48,6,'#7fc8ff');R(b,r.x+24+i*72,r.y,48,40,'#7fc8ff0d')}});
-  // big department titles, written on top
+  // door name plates
+  Object.values(ROOMS).forEach(r=>{const label=r.cabins?r.name.toUpperCase():r.name,y=r.row?BY:CY;add(y+1,()=>{const w=textW(g,label,10)+14,x1=r.dx-26,x0=x1-w;
+    planeY(g,y,x0,x1,68,82,r.row?shade(r.accent,-115)+'aa':shade(r.accent,-115));planeY(g,y,x0,x1,80,82,r.accent);textY(g,y,(x0+x1)/2,74,label,10,r.accent)})});
+  // big titles
   const h=ROOMS.hunt,a=ROOMS.adv;
-  neon(b,'AMAZON HUNTING DEPARTMENT',h.x+h.w/2,TY-24,18,h.accent);
-  R(b,a.x+a.w/2-210,a.y+8,420,26,'#0009');neon(b,'AMAZON ADVANCE HUNTING DEPARTMENT',a.x+a.w/2,a.y+21,15,a.accent);
-  // flow arrow in corridor between the two
-  b.fillStyle='#ffd16655';b.font='10px Silkscreen, monospace';b.textAlign='center';b.fillText('▼  FILES GO TO ADVANCE TESTING  ▼',h.x+h.w/2-110,LANE-1);b.textAlign='left';
+  add(-1e9+2,()=>{const t='AMAZON HUNTING DEPARTMENT',w=textW(g,t,20)+40,cx=h.x+h.w/2;box(g,cx-w/2,36,cx+w/2,40,WALL,WALL+34,'#140d05');planeY(g,40,cx-w/2,cx+w/2,WALL+2,WALL+32,'#1a1108',h.accent);textY(g,40,cx,WALL+17,t,20,h.accent,true)});
+  {const a=ROOMS.adv,t='AMAZON ADVANCE HUNTING DEPARTMENT',x0=a.x+6,x1=a.x+a.w-6;add(a.fy+0.6,()=>{planeY(g,a.fy,x0,x1,WALL-2,WALL+20,'#120e03',a.accent);textY(g,a.fy,(x0+x1)/2,WALL+9,t,16,a.accent,true)})}
+  // furniture per room
+  const R0=ROOMS;
+  {const r=R0.manager;shelfAt(r.x+150,46,72);plantAt(r.x+12,52);plantAt(r.x+12,r.y+r.h-34);sofaAt(r.x+60,r.y+r.h-50,74,'#6b4a8a');tableAt(r.x+150,r.y+r.h-60,40,24,'#5a3d26')}
+  {const r=R0.research;shelfAt(r.x+150,46,72);plantAt(r.x+214,r.y+r.h-34);boardStand(r.x+20,r.y+r.h-50,60)}
+  {const r=R0.hunt;boxesAt(r.x+24,r.y+r.h-60);boxesAt(r.x+60,r.y+r.h-44);boardStand(r.x+r.w-140,r.y+r.h-44,80,true);plantAt(r.x+r.w-30,r.y+r.h-34)}
+  {const r=R0.content;shelfAt(r.x+150,46,72);plantAt(r.x+12,52);plantAt(r.x+12,r.y+r.h-34);sofaAt(r.x+70,r.y+r.h-46,60,'#2f7a5a')}
+  {const r=R0.marketing;plantAt(r.x+214,r.y+r.h-34);boardStand(r.x+20,r.y+r.h-50,70,true);shelfAt(r.x+150,46,72)}
+  {const r=R0.review;cabinetAt(r.x+14,r.y+r.h-30);cabinetAt(r.x+42,r.y+r.h-30);plantAt(r.x+214,r.y+r.h-34);shelfAt(r.x+150,r.y+r.h-22,72)}
+  {const r=R0.records;for(let i=0;i<6;i++)cabinetAt(r.x+14+i*30,r.y+r.h-30);plantAt(r.x+20,r.y+40)}
+  {const r=R0.adv;plantAt(r.x+16,r.y+40);plantAt(r.x+r.w-30,r.y+40);boardStand(r.x+60,r.y+50,80,true)}
+  {const r=R0.pantry,x=r.x,y=r.y;add(y+86,()=>{box(g,x+8,y+20,x+36,y+152,0,30,'#7d8a9c',{top:'#cfd8e3'});box(g,x+12,y+40,x+30,y+58,30,52,'#2e2e36');box(g,x+15,y+62,x+27,y+70,30,36,'#e8e8e8');box(g,x+14,y+100,x+30,y+112,30,40,'#8fb4d6')});
+    add(y+192,()=>{box(g,x+8,y+170,x+36,y+214,0,62,'#d6dde6');planeX(g,x+36,y+176,y+178,30,46,'#7f8ea3')});
+    tableAt(x+130,y+98,50,28);tableAt(x+130,y+198,50,28);[[106,108],[186,108],[106,208],[186,208]].forEach(([a2,b2])=>stoolAt(x+a2,y+b2));plantAt(x+222,y+r.h-34)}
+  {const r=R0.meeting,x=r.x,y=r.y;add(y+163,()=>{box(g,x+120,y+156,x+130,y+168,0,22,'#2a2a30');box(g,x+50,y+140,x+200,y+186,22,27,'#4a3424')});
+    for(let i=0;i<5;i++){stoolAt(x+58+i*28,y+116);stoolAt(x+58+i*28,y+194)}
+    add(y+272,()=>{box(g,x+80,y+268,x+170,y+276,0,26,'#222');box(g,x+84,y+270,x+166,y+274,26,62,'#111a26');planeY(g,y+274,x+88,x+162,30,58,'#1d4e6b');textY(g,y+274,x+125,44,'MEETING',8,'#9fe6ff')});
+    plantAt(x+12,y+40);plantAt(x+222,y+r.h-34)}
 }
-function drawCabins(r){
-  r.cabs.forEach((c,i)=>{if(!c)return});
-  const n=r.cabins,cw=(r.w-12)/n,top=r.row?r.fy:r.y,bot=r.row?r.y+r.h:r.fy;
-  for(let i=0;i<n;i++){
-    const cx0=r.x+6+i*cw,cdx=cx0+cw-26;
-    R(b,cx0+2,top,cw-4,bot-top,'#ffffff08');
-    for(let yy=top;yy<bot;yy+=16)for(let xx=cx0+2;xx<cx0+cw-2;xx+=16)if(((xx+yy)/16)%2<1)R(b,xx,yy,Math.min(16,cx0+cw-2-xx),Math.min(16,bot-yy),'#ffffff06');
-    if(i>0){R(b,cx0-2,top,4,bot-top,'#9fd8ff2a');R(b,cx0-2,top,1,bot-top,'#8aa0c0');R(b,cx0+1,top,1,bot-top,'#8aa0c0')}
-    // front glass with door gap
-    R(b,cx0+2,r.fy-2,cdx-13-(cx0+2),4,'#9fd8ff40');R(b,cx0+2,r.fy-2,cdx-13-(cx0+2),1,'#b8d4f0');
-    R(b,cdx+13,r.fy-2,cx0+cw-2-(cdx+13),4,'#9fd8ff40');R(b,cdx+13,r.fy-2,cx0+cw-2-(cdx+13),1,'#b8d4f0');
-    // cabin plate
-    b.font='9px Silkscreen, monospace';const t='CABIN '+(i+1);const tw=b.measureText(t).width+10,px=cx0+10,py=r.row?r.fy+4:r.fy-16;
-    R(b,px,py,tw,12,shade(r.accent,-100));b.fillStyle=r.accent;b.textBaseline='middle';b.fillText(t,px+5,py+6);
-    // cabin decor
-    if(r.row){plant(cx0+cw-30,r.y+r.h-42);R(b,cx0+10,r.y+r.h-26,40,14,'#5a3d26')}
-    else{if(r.key==='hunt')boxes(cx0+cw-38,r.y+20);else shelf(cx0+cw-46,r.y+10,36)}
-  }
+/* ---- floors (pre-rendered) ---- */
+const bgc=document.createElement('canvas');bgc.width=BGW;bgc.height=BGH;const b=bgc.getContext('2d');
+function buildBG(){
+  b.setTransform(1,0,0,1,0,0);b.clearRect(0,0,BGW,BGH);
+  b.setTransform(1,0,0,KY,OX,OY);sd=11;
+  b.fillStyle='#141c2a';b.fillRect(16,CY,1488,BY-CY);
+  for(let x=16;x<1504;x+=24){b.fillStyle=(x/24)%2<1?'#172031':'#151d2c';b.fillRect(x,CY,24,BY-CY)}
+  b.fillStyle='#1d2a44';b.fillRect(16,LANE-14,1488,28);b.fillStyle='#2a3b5e';b.fillRect(16,LANE-14,1488,2);b.fillRect(16,LANE+12,1488,2);
+  Object.values(ROOMS).forEach(r=>{
+    if(r.key==='pantry'){for(let yy=r.y;yy<r.y+r.h;yy+=20)for(let xx=r.x;xx<r.x+r.w;xx+=20){b.fillStyle=((xx-r.x)/20+(yy-r.y)/20)%2<1?'#e8dcc8':'#3b3228';b.fillRect(xx,yy,20,20)}}
+    else if(r.key==='meeting'){b.fillStyle='#2b3546';b.fillRect(r.x,r.y,r.w,r.h);for(let i=0;i<400;i++){b.fillStyle=`rgba(255,255,255,${rnd()*0.03})`;b.fillRect(r.x+rnd()*r.w,r.y+rnd()*r.h,2,2)}}
+    else{const base=r.floor[1];for(let yy=r.y;yy<r.y+r.h;yy+=10){let xx=r.x+((yy/10)%2)*30;b.fillStyle=base;b.fillRect(r.x,yy,r.w,10);
+      while(xx<r.x+r.w){const L=40+rnd()*50;b.fillStyle=shade(base,Math.round((rnd()-0.5)*14));b.fillRect(xx,yy,Math.min(L,r.x+r.w-xx)-1,9);xx+=L}}}
+    if(r.cabins){r.cabs.forEach(c=>{if(!c)return;const y0=r.row?r.fy:r.y,y1=r.row?r.y+r.h:r.fy;b.fillStyle=shade(r.accent,-120)+'66';b.fillRect(c.cx0+4,y0+2,c.cw-8,y1-y0-4)})}
+  });
+  [['manager',40,170,150,70,'#4a3560'],['research',40,180,120,60,'#203a55'],['content',40,180,140,60,'#1f4434'],['marketing',40,180,140,60,'#4a2443'],['review',40,40,140,60,'#2a2f55']].forEach(([k,ox,oy,w,h2,c])=>{const r=ROOMS[k];b.fillStyle=c;b.fillRect(r.x+ox,r.y+oy,w,h2);b.fillStyle=shade(c,14);b.fillRect(r.x+ox+5,r.y+oy+5,w-10,h2-10);b.fillStyle=c;b.fillRect(r.x+ox+10,r.y+oy+10,w-20,h2-20)});
+  const glow=(x,y,rad,col)=>{const gr=b.createRadialGradient(x,y,0,x,y,rad);gr.addColorStop(0,col);gr.addColorStop(1,'rgba(0,0,0,0)');b.fillStyle=gr;b.fillRect(x-rad,y-rad,rad*2,rad*2)};
+  Object.values(ROOMS).forEach(r=>glow(r.x+r.w/2,r.y+r.h/2,r.w*0.55,'rgba(255,214,150,0.10)'));
+  CABS.forEach(c=>glow(c.sx,c.seat.y+10,70,'rgba(255,220,160,0.12)'));
+  for(let x=60;x<1504;x+=120)glow(x,LANE,60,'rgba(150,200,255,0.06)');
+  b.setTransform(1,0,0,1,0,0);
+  buildStatic();
 }
-function decor(r){
-  const {x,y,h,w}=r;
-  switch(r.key){
-    case 'manager':rug(x+40,y+150,150,80,'#4a3560');shelf(x+150,y+10,72);plant(x+14,y+12);plant(x+14,y+h-48);sofa(x+60,y+236,70,'#6b4a8a');break;
-    case 'research':shelf(x+150,y+10,72);board(x+20,y+10,70);plant(x+14,y+h-48);rug(x+40,y+170,120,60,'#203a55');break;
-    case 'hunt':boxes(x+30,y+h-60);boxes(x+70,y+h-50);plant(x+w-40,y+h-48);board(x+120,y+h-40,90,true);break;
-    case 'adv':plant(x+14,y+40);plant(x+w-36,y+40);board(x+40,y+50,80,true);break;
-    case 'content':board(x+150,y+10,76);plant(x+14,y+12);plant(x+14,y+h-48);rug(x+40,y+170,140,60,'#1f4434');break;
-    case 'marketing':board(x+20,y+10,70,true);board(x+150,y+10,70);plant(x+210,y+h-48);rug(x+40,y+170,140,60,'#4a2443');break;
-    case 'review':cabinet(x+14,y+h-60);cabinet(x+42,y+h-60);plant(x+200,y+h-50);shelf(x+170,y+h-46,60);break;
-    case 'records':for(let i=0;i<6;i++)cabinet(x+14+i*30,y+h-56);plant(x+200,y+40);break;
-    case 'pantry':R(b,x+10,y+30,28,130,'#9aa6b4');R(b,x+12,y+32,24,126,'#c4ced9');R(b,x+16,y+44,16,20,'#2e2e36');R(b,x+20,y+56,8,5,'#111');R(b,x+18,y+100,16,12,'#8fb4d6');
-      R(b,x+10,y+176,28,46,'#d6dde6');R(b,x+33,y+186,2,12,'#7f8ea3');table(x+128,y+196,52,30);stool(x+108,y+204);stool(x+186,y+204);table(x+128,y+96,52,30);stool(x+108,y+104);stool(x+186,y+104);R(b,x+146,y+100,6,6,'#fff');R(b,x+158,y+200,6,6,'#fff');plant(x+220,y+262);break;
-    case 'meeting':table(x+50,y+140,150,46);for(let i=0;i<5;i++){stool(x+58+i*28,y+122);stool(x+58+i*28,y+196)}R(b,x+60,y+h-16,130,8,'#111a26');R(b,x+64,y+h-14,122,4,'#46e6ff66');plant(x+14,y+40);plant(x+210,y+h-50);break;
-  }
+/* ---- dynamic pieces ---- */
+function drawChair(c){const x=c.seat.x,y=c.seat.y;box(g,x-11,y-14,x+11,y-10,8,40,'#2b3445');box(g,x-11,y-10,x+11,y+3,12,17,'#323d52');box(g,x-2,y-6,x+2,y-2,0,12,'#1b2230')}
+function drawDesk(c,p,t){
+  const r=ROOMS[c.room],big=c.room==='manager',w=big?54:40,x=c.seat.x,y=c.seat.y;
+  box(g,x-w+2,y+8,x-w+6,y+22,0,22,'#3a2a1c');box(g,x+w-6,y+8,x+w-2,y+22,0,22,'#3a2a1c');box(g,x-w+6,y+20,x+w-6,y+22,6,22,'#5a4029');
+  box(g,x-w,y+6,x+w,y+24,22,26,big?'#6b4a2f':'#9a7451');
+  box(g,x-12,y+9,x+8,y+13,26,27,'#22262f');box(g,x+w-14,y+16,x+w-6,y+21,26,32,'#e8e8e8');box(g,x-w+6,y+12,x-w+16,y+20,26,27,'#f4f4f4');
+  box(g,x+26,y+11,x+30,y+14,26,32,'#1c222d');box(g,x+16,y+9,x+40,y+11,32,52,'#1c222d');
+  if(p.typing){const [mx,my]=pr(x+28,y+9,42);const gr=g.createRadialGradient(mx,my,0,mx,my,34);gr.addColorStop(0,r.accent+'88');gr.addColorStop(1,r.accent+'00');g.fillStyle=gr;g.fillRect(mx-34,my-34,68,68);
+    planeY(g,y+9,x+17,x+39,33,51,(Math.floor(t/300)%2?shade(r.accent,-30):r.accent)+'cc')}
 }
+function drawDoor(d){
+  const s=d.row?1:-1,w=d.half*2,th=d.open*1.45,hx=d.x-d.half,hy=d.y,ex=hx+w*Math.cos(th),ey=hy+s*w*Math.sin(th);
+  const P3=(u,z)=>pr(hx+(ex-hx)*u,hy+(ey-hy)*u,z);
+  if(d.cab){poly(g,[P3(0,0),P3(1,0),P3(1,DOORH),P3(0,DOORH)],'rgba(200,230,255,0.22)',d.accent,1.5);poly(g,[P3(0.85,30),P3(0.92,30),P3(0.92,36),P3(0.85,36)],'#ddd')}
+  else{poly(g,[P3(0,0),P3(1,0),P3(1,DOORH),P3(0,DOORH)],'#7a4e2d','#3a2414',1);poly(g,[P3(0.18,30),P3(0.82,30),P3(0.82,58),P3(0.18,58)],'rgba(170,215,255,0.35)');
+    poly(g,[P3(0.86,30),P3(0.93,30),P3(0.93,34),P3(0.86,34)],'#e9c46a')}
+}
+function drawPerson(p,t,ax,ay){
 
-function drawPerson(p,t){
-  const u=3,X=Math.round(p.x)-12,Y=Math.round(p.y)-48,sit=p.seated,dir=sit?'down':p.dir;
+  const u=3,X=Math.round(ax)-12,Y=Math.round(ay)-48-(p.path.length?Math.abs(Math.sin(p.dist/6))*1.5:0),sit=p.seated,dir=sit?'down':p.dir;
   const moving=p.path.length>0,ph=moving?[0,1,0,-1][Math.floor(p.dist/6)%4]:0,flip=dir==='left';
   const Q=(x,y,w,h,c)=>{if(flip)x=8-x-w;g.fillStyle=c;g.fillRect(X+x*u,Y+y*u,w*u,h*u)};
   const sk=p.skin,hr=p.hair,sh=p.shirt,pn=p.pants,shoe='#151515',shD=shade(sh,-35),eye='#161616',cap=p.cap||'#2d6cdf';
   const blink=((t+p.seed*5000)%4300)<130;
-  if(!sit){g.fillStyle='#0008';g.beginPath();g.ellipse(p.x,p.y+1,11,4,0,0,7);g.fill()}
+  if(!sit){g.fillStyle='#0008';g.beginPath();g.ellipse(ax,ay+1,12,5,0,0,7);g.fill()}
   if(dir==='down'||dir==='up'){
     if(!sit){const a=ph>0?-1:0,c=ph<0?-1:0;Q(2,11+a,2,4,pn);Q(4,11+c,2,4,pn);Q(2,15+a,2,1,shoe);Q(4,15+c,2,1,shoe)}
     Q(1,6,6,5,sh);Q(1,10,6,1,shD);
@@ -456,36 +539,38 @@ function drawPerson(p,t){
     }
     Q(3+ph,6,2,4,shD);Q(3+ph,10,2,1,sk);
   }
-  if(p.carry){const cx=p.x+(flip?-19:9);g.fillStyle=p.carry==='gold'?'#ffd166':'#f4f4f4';g.fillRect(cx,p.y-22,10,13);g.fillStyle='#9aa8b8';g.fillRect(cx+2,p.y-19,6,1);g.fillRect(cx+2,p.y-16,6,1);g.fillRect(cx+2,p.y-13,4,1)}
+  if(p.carry){const cx=ax+(flip?-19:9);g.fillStyle=p.carry==='gold'?'#ffd166':'#f4f4f4';g.fillRect(cx,ay-22,10,13);g.fillStyle='#9aa8b8';g.fillRect(cx+2,ay-19,6,1);g.fillRect(cx+2,ay-16,6,1);g.fillRect(cx+2,ay-13,4,1)}
 }
-function drawChair(c){R(g,c.seat.x-14,c.deskTop-30,28,26,'#2b3445');R(g,c.seat.x-14,c.deskTop-30,28,4,'#3b4760')}
-function drawDesk(c,p){
-  const r=ROOMS[c.room],big=c.room==='manager',x=c.sx-(big?54:42),w=big?108:84,y=c.deskTop;
-  R(g,x,y,w,8,'#a47c53');R(g,x,y+8,w,16,'#6e4f33');R(g,x+2,y+24,4,4,'#3a2a1c');R(g,x+w-6,y+24,4,4,'#3a2a1c');
-  if(p.typing){g.fillStyle=r.accent+'40';g.fillRect(x+1,y-17,30,20)}
-  R(g,x+4,y-14,24,15,'#1c222d');R(g,x+5,y-13,22,2,p.typing?r.accent:'#2c3442');R(g,x+14,y+1,4,3,'#1c222d');
-  R(g,x+w/2-10,y+2,20,4,'#2b2f3a');R(g,x+w-17,y+1,8,6,'#e8e8e8');R(g,x+w-7,y,4,5,'#d65a5a');
+function drawBubbleS(x,y,text){
+  const dp=V.dpr;g.font=`${11*dp}px Chakra Petch, sans-serif`;let s=text;while(g.measureText(s).width>200*dp)s=s.slice(0,-2);if(s!==text)s+='…';
+  const tw=g.measureText(s).width+12*dp,bx=Math.round(Math.max(4,Math.min(cv.width-tw-4,x-tw/2))),by=Math.round(y-20*dp);
+  g.fillStyle='rgba(255,255,255,0.96)';g.beginPath();g.roundRect?g.roundRect(bx,by,tw,17*dp,5*dp):g.rect(bx,by,tw,17*dp);g.fill();g.beginPath();g.moveTo(x-4*dp,by+17*dp);g.lineTo(x+4*dp,by+17*dp);g.lineTo(x,by+22*dp);g.fill();
+  g.fillStyle='#0b1626';g.textBaseline='middle';g.textAlign='left';g.fillText(s,bx+6*dp,by+9*dp);
 }
-function drawDoors(){
-  DOORS.forEach(d=>{
-    const near=Object.values(P).some(p=>Math.abs(p.x-d.x)<d.half+8&&Math.abs(p.y-d.y)<38);
-    d.open+=((near?1:0)-d.open)*0.12;
-    const y=d.cab?d.y-2:(d.row?d.y:d.y-d.T),c=shade(d.accent,-70),wl=d.half*(1-d.open);
-    R(g,d.x-d.half-2,y-1,3,d.T+2,'#8aa0c0');R(g,d.x+d.half-1,y-1,3,d.T+2,'#8aa0c0');
-    if(wl>0.5){R(g,d.x-d.half+1,y,wl,d.T,c);R(g,d.x+d.half-1-wl,y,wl,d.T,c);R(g,d.x-d.half+1,y+1,wl,1,d.accent)}
-  });
+function drawTagS(p,x,y){
+  const dp=V.dpr;g.font=`${9*dp}px Silkscreen, monospace`;const tw=g.measureText(p.name).width+8*dp;
+  g.fillStyle='rgba(0,0,0,0.65)';g.fillRect(x-tw/2,y,tw,12*dp);g.fillStyle=selected===p.key?'#46e6ff':p.shirt;g.textAlign='center';g.textBaseline='top';g.fillText(p.name,x,y+2*dp);g.textAlign='left';
 }
-function drawBubble(x,y,text){
-  g.font='11px Chakra Petch, sans-serif';const tw=Math.min(g.measureText(text).width,180)+12;
-  const bx=Math.round(Math.max(4,Math.min(W-tw-4,x-tw/2))),by=Math.round(y-20);
-  g.fillStyle='#ffffff';g.fillRect(bx,by,tw,17);g.fillRect(x-2,by+17,4,4);
-  g.fillStyle='#0b1626';g.textBaseline='middle';g.textAlign='left';
-  let s=text;while(g.measureText(s).width>180)s=s.slice(0,-2);if(s!==text)s+='…';g.fillText(s,bx+6,by+9);
+const toScreen=(x,y,z=0)=>{const [bx,by]=pr(x,y,z);return[bx*V.z+V.px,by*V.z+V.py]};
+function drawScene(t){
+  g.setTransform(1,0,0,1,0,0);const gr=g.createLinearGradient(0,0,0,cv.height);gr.addColorStop(0,'#0c1424');gr.addColorStop(1,'#04070d');g.fillStyle=gr;g.fillRect(0,0,cv.width,cv.height);
+  setT(1,0,0,1,0,0);g.imageSmoothingEnabled=true;g.drawImage(bgc,0,0);
+  const items=STATIC.slice();
+  DOORS.forEach(d=>{const near=Object.values(P).some(p=>Math.abs(p.x-d.x)<d.half+10&&Math.abs(p.y-d.y)<34);d.open+=((near?1:0)-d.open)*0.1;items.push({k:d.y+(d.row?1:-1)*d.half*d.open-1,f:()=>drawDoor(d)})});
+  Object.values(P).forEach(p=>{const c=p.cabRef;items.push({k:c.seat.y-8,f:()=>drawChair(c)},{k:c.seat.y+15,f:()=>drawDesk(c,p,t)},{k:p.y+4+p.x*1e-5,f:()=>{const [ax,ay]=pr(p.x,p.y);drawPerson(p,t,ax,ay)}})});
+  items.sort((a,b2)=>a.k-b2.k);setT(1,0,0,1,0,0);g.imageSmoothingEnabled=false;
+  for(const it of items)it.f();
+  g.setTransform(1,0,0,1,0,0);
+  const vg=g.createRadialGradient(cv.width/2,cv.height/2,cv.height*0.45,cv.width/2,cv.height/2,cv.width*0.75);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.45)');g.fillStyle=vg;g.fillRect(0,0,cv.width,cv.height);
+  Object.values(P).forEach(p=>{const [sx,sy]=toScreen(p.x,p.y);drawTagS(p,sx,sy+(p.seated?14:6)*V.z);
+    const hy=sy-54*V.z;if(p.bubble&&t<p.bubble.until)drawBubbleS(sx,hy,p.bubble.text);else if(p.typing)drawBubbleS(sx,hy,(p.workText||'Working')+'.'.repeat(1+Math.floor(t/350)%3))});
 }
-function drawTag(p){
-  g.font='9px Silkscreen, monospace';const tw=g.measureText(p.name).width+8,y=p.seated?p.y+18:p.y+6;
-  g.fillStyle='#000a';g.fillRect(p.x-tw/2,y,tw,12);g.fillStyle=selected===p.key?'#46e6ff':p.shirt;g.textAlign='center';g.textBaseline='top';g.fillText(p.name,p.x,y+2);g.textAlign='left';
-}
+/* ---- camera: fit, zoom, pan ---- */
+function fitView(){V.z=cv.width/BGW;V.px=0;V.py=0}
+function resizeCanvas(){V.dpr=Math.min(2,window.devicePixelRatio||1);const w=cv.clientWidth;if(!w)return;cv.width=Math.round(w*V.dpr);cv.height=Math.round(w*V.dpr*BGH/BGW);fitView()}
+new ResizeObserver(resizeCanvas).observe(cv);
+cv.addEventListener('click',e=>{const r=cv.getBoundingClientRect(),mx=(e.clientX-r.left)*V.dpr,my=(e.clientY-r.top)*V.dpr;
+  const hit=Object.values(P).find(p=>{const [sx,sy]=toScreen(p.x,p.y);return Math.abs(mx-sx)<14*V.z&&my<sy+6*V.z&&my>sy-50*V.z});if(hit)pick(hit.key)});
 let last=performance.now(),lastRoster=0;
 function tick(t){
   const dt=Math.min(.05,(t-last)/1000);last=t;const sp=SPEEDS[S.settings.speed]||66;
@@ -496,12 +581,7 @@ function tick(t){
     if(d<=st){p.x=q.x;p.y=q.y;p.dist+=d;p.path.shift();if(!p.path.length&&p.onArrive)p.onArrive()}
     else{p.x+=dx/d*st;p.y+=dy/d*st;p.dist+=st}
   });
-  g.drawImage(bg,0,0);drawDoors();
-  const items=[];
-  Object.values(P).forEach(p=>{const c=p.cabRef;items.push({y:c.seat.y-1,f:()=>drawChair(c)},{y:c.deskTop+24,f:()=>drawDesk(c,p)},{y:p.y,f:()=>drawPerson(p,t)})});
-  items.sort((a,b)=>a.y-b.y).forEach(i=>i.f());
-  Object.values(P).forEach(p=>{drawTag(p);const hy=p.y-52;
-    if(p.bubble&&t<p.bubble.until)drawBubble(p.x,hy,p.bubble.text);else if(p.typing)drawBubble(p.x,hy,(p.workText||'Working')+'.'.repeat(1+Math.floor(t/350)%3))});
+  if(cv.width)drawScene(t);
   drawOrb();if(t-lastRoster>500){renderRoster();lastRoster=t}
   requestAnimationFrame(tick);
 }
@@ -528,9 +608,8 @@ function pick(k){if(k==='records')return;const v=HUNTERS.concat(ANALYSTS).includ
 function renderWho(){const v=$('who').value||'manager';
   $('who').innerHTML=`<option value="manager">${esc(P.manager.name)} – Manager (shares the work)</option><option value="amazon">Amazon departments (hunt → advance test → final)</option>`+['research','content','marketing','review'].map(k=>`<option value="${k}">${esc(P[k].name)} – ${ROOMS[k].name} only</option>`).join('');$('who').value=v}
 $('who').onchange=()=>{selected=$('who').value==='amazon'?'hunt1':$('who').value;renderRoster()};
-cv.addEventListener('click',e=>{const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)*W/r.width,y=(e.clientY-r.top)*H/r.height;
-  const hit=Object.values(P).find(p=>Math.abs(p.x-x)<15&&y>p.y-50&&y<p.y+4);if(hit)pick(hit.key)});
-function log(name,text,color,err){const L=$('log');L.querySelector('.empty')?.remove();const d=document.createElement('div');d.className='msg'+(err?' err':'');if(color)d.style.setProperty('--c',color);d.innerHTML=`<b>${esc(name)}</b>${esc(text)}`;L.appendChild(d);L.scrollTop=L.scrollHeight}
+
+function log(name,text,color,err){if(document.hidden)awayLogs++;const L=$('log');L.querySelector('.empty')?.remove();const d=document.createElement('div');d.className='msg'+(err?' err':'');if(color)d.style.setProperty('--c',color);d.innerHTML=`<b>${esc(name)}</b>${esc(text)}`;L.appendChild(d);L.scrollTop=L.scrollHeight}
 $('clearLog').onclick=()=>{$('log').innerHTML='<div class="empty">Log cleared.</div>'};
 
 /* ================= SHEET ================= */
@@ -581,8 +660,8 @@ function openEditor(k){
     onSave=()=>{const old=JSON.stringify([st.provider,st.base,st.model,st.key]);S.settings={provider:$('pv').value,base:$('bs').value.trim().replace(/\/$/,''),model:$('md').value.trim(),key:$('ky').value.trim(),speed:$('spd').value};
       if(online&&old!==JSON.stringify([S.settings.provider,S.settings.base,S.settings.model,S.settings.key]))setOnline(false)}}
   if(k==='team'){
-    B.innerHTML=`<p class="note">Rename people and describe their jobs. Hunters search in the niches written in their job, analysts test from the angle in theirs.</p>`+Object.values(P).map(p=>`<div class="trow"><span>${ROOMS[p.cabRef.room].name}${p.cabRef.room==='hunt'||p.cabRef.room==='adv'?' · Cabin '+(p.cabRef.i+1):''}</span><input type="color" id="c_${p.key}" value="${p.shirt}" aria-label="Shirt colour"><input id="n_${p.key}" value="${esc(p.name)}" aria-label="Name"><input id="r_${p.key}" value="${esc(p.role)}" aria-label="Job"></div>`).join('');
-    onSave=()=>{Object.values(P).forEach(p=>{p.name=$('n_'+p.key).value.trim()||p.name;p.role=$('r_'+p.key).value.trim()||p.role;p.shirt=$('c_'+p.key).value;S.people[p.key]={name:p.name,role:p.role,shirt:p.shirt}});renderWho()}}
+    B.innerHTML=`<p class="note">Rename people, describe their jobs, and set each person’s ONE skill (second line). Agents refuse anything outside their skill and point you to the right colleague.</p>`+Object.values(P).map(p=>`<div class="trow"><span>${ROOMS[p.cabRef.room].name}${p.cabRef.room==='hunt'||p.cabRef.room==='adv'?' · Cabin '+(p.cabRef.i+1):''}</span><input type="color" id="c_${p.key}" value="${p.shirt}" aria-label="Shirt colour"><input id="n_${p.key}" value="${esc(p.name)}" aria-label="Name"><input id="r_${p.key}" value="${esc(p.role)}" aria-label="Job"><input id="s_${p.key}" value="${esc(p.skill)}" aria-label="Only skill" style="grid-column:2/-1" placeholder="Only skill"></div>`).join('');
+    onSave=()=>{Object.values(P).forEach(p=>{p.name=$('n_'+p.key).value.trim()||p.name;p.role=$('r_'+p.key).value.trim()||p.role;p.shirt=$('c_'+p.key).value;p.skill=$('s_'+p.key).value.trim()||p.skill;S.people[p.key]={name:p.name,role:p.role,shirt:p.shirt,skill:p.skill}});renderWho()}}
   if(k==='amazon'){const c=S.criteria;
     B.innerHTML=`<p class="note">Used by both Amazon departments. Anything you say in the task (like "UK, 15 to 30 pound") overrides these.</p>
     <div class="two"><div><label>Marketplace</label><select id="cm">${Object.keys(MARKETS).map(m=>`<option ${c.market===m?'selected':''}>${m}</option>`).join('')}</select></div><div><label>Category</label><input id="cc" value="${esc(c.category)}"></div></div>
@@ -623,7 +702,7 @@ function helpFor(e){let m=e.message||String(e);
   if(/404/.test(m))m+='\nThe model name may be wrong or no longer free. Check the provider website for the current name.';
   if(/429/.test(m))m+='\nToo many requests on the free plan. Wait a minute and try again.';
   return m}
-function sysFor(p){return `${langInstr(curMode)}\n\n${S.soul}\n\nYou work in an AI office. Your name is ${p.name}, in the ${ROOMS[p.cabRef.room].name}. Your job: ${p.role}\n\nTeam skills:\n${S.skills}\n\nWhat you know about the boss and the business:\n${S.memory||'(nothing yet)'}`}
+function sysFor(p){return `${langInstr(curMode)}\n\n${S.soul}\n\nYou work in an AI office. Your name is ${p.name}, in the ${ROOMS[p.cabRef.room].name}. Your job: ${p.role}\n\nYOUR ONE SKILL: ${p.skill}. You do ONLY this kind of work. If anyone asks you for something outside this skill, politely say it is not your work and name the colleague whose skill it is. Never do another person's work.\n\nTeam skills:\n${S.skills}\n\nWhat you know about the boss and the business:\n${S.memory||'(nothing yet)'}`}
 const isDemo=()=>S.settings.provider==='demo';
 const AMZ_EXPERT='\n\nYou are an experienced Amazon FBA private label expert. You know which niches are oversaturated, gated, seasonal, fragile, patented or risky. All numbers are your best estimates; never claim live Amazon data. Keep product names and keywords in English.';
 const critText=()=>{const c=S.criteria;return `- Marketplace: Amazon ${c.market}\n- Category: ${c.category}\n- Price: ${c.priceMin} to ${c.priceMax}\n- Top competitors under ${c.maxReviews} reviews\n- At least ${c.minSales} sales/month for top sellers\n- Max weight: ${c.maxWeight}\n- Budget: ${c.budget}\n- Rules: ${c.notes}`};
@@ -749,7 +828,7 @@ async function runTask(task,whoKey,mode){
   if(office.meeting)await endMeeting(mode,true);
   if(running){log('System','The team is still working on the last task. Please wait.',null,true);return}
   if(!online){await setOnline(true);if(!online)return}
-  running=office.busy=true;$('runBtn').disabled=true;log('You',task,'#e8f4ff');
+  running=office.busy=true;$('runBtn').disabled=true;requestWake();log('You',task,'#e8f4ff');
   say(P.manager,PH.start[mode],2600);speak(PH.start[mode],P.manager,mode,PH.start.hi);let results=[];
   try{
     if(whoKey==='manager'){
@@ -773,7 +852,7 @@ async function runTask(task,whoKey,mode){
     log(m.name+' – report to boss',fin.reply,'#ffe066');say(m,PH.done[mode],4000);speak(fin.reply,m,mode,fin.speech);
     if(S.autoMemory&&!isDemo()){S.memory=(S.memory+`\n- ${new Date().toLocaleDateString()}: did "${task.slice(0,80)}"`).trim();save()}
   }catch(e){log('System',helpFor(e),null,true)}
-  finally{running=office.busy=false;$('runBtn').disabled=false;Object.values(P).forEach(p=>{p.typing=false;if(p.bubble&&p.bubble.text.startsWith('Waiting'))p.bubble=null})}
+  finally{running=office.busy=false;releaseWake();$('runBtn').disabled=false;Object.values(P).forEach(p=>{p.typing=false;if(p.bubble&&p.bubble.text.startsWith('Waiting'))p.bubble=null})}
 }
 $('runBtn').onclick=()=>handleInput($('task').value,$('who').value);
 $('meetBtn').onclick=()=>office.meeting?endMeeting(curMode):callMeeting(curMode);
@@ -859,7 +938,7 @@ function contextFor(p){
   if(p.key==='manager'||p.key==='records'||ANALYSTS.includes(p.key))L.push('Latest final products: '+last(sh.final,6).map(r=>`#${r.rank} ${r.name} (${r.price}, net ${r.netProfit}, ROI ${r.roi})`).join('; '));
   if(p.key==='manager'||p.key==='records')L.push(`Sheet totals: ${sh.final.length} final, ${sh.advanced.length} tested, ${sh.hunted.length} hunted, ${sh.findings.length} other findings.`);
   if(['research','content','marketing','review','manager'].includes(p.key))L.push('Recent work: '+last(sh.findings.filter(r=>p.key==='manager'||r.agent===p.name),8).map(r=>`${r.title}: ${String(r.details).slice(0,120)}`).join('; '));
-  L.push('Your colleagues: '+Object.values(P).filter(q=>q!==p).map(q=>`${q.name} (${ROOMS[q.cabRef.room].name})`).join(', ')+`. Your best friend here is ${friendOf(p)}.`);
+  L.push('Your colleagues and their only skills: '+Object.values(P).filter(q=>q!==p).map(q=>`${q.name}: ${q.skill}`).join('; ')+`. Your best friend here is ${friendOf(p)}.`);
   const hist=(S.chat||[]).filter(c=>c.to===p.key).slice(-4).map(c=>`Boss: ${c.q}\nYou: ${c.a}`).join('\n');
   if(hist)L.push('Your last talk with the boss:\n'+hist);
   return L.filter(x=>!/: $/.test(x)).join('\n');
@@ -888,10 +967,12 @@ async function askPerson(p,q,mode,via){
   try{
     let j;
     if(isDemo()){await sleep(1500);j=demoAnswer(p,mode)}
-    else{const raw=await askAI(sysFor(p),`What you know right now:\n${contextFor(p)}\n\n${office.meeting?'You are in a team meeting with the whole office. ':''}The boss is talking to you directly and said:\n"${q}"\n\n${via?via.name+' (the manager) passed the boss\'s message to you; answer the boss directly. ':''}Answer as ${p.name} in first person, like a real colleague talking face to face: natural, friendly and to the point (2 to 5 sentences unless the boss asks for detail). Use your real recent work above when it helps. If you do not know something, say so honestly. ${langInstr(mode)}\nReply with ONLY JSON: {"reply":"...","speech":"..."} where ${speechInstr(mode)}`);
+    else{const raw=await askAI(sysFor(p),`What you know right now:\n${contextFor(p)}\n\n${office.meeting?'You are in a team meeting with the whole office. ':''}The boss is talking to you directly and said:\n"${q}"\n\n${via?via.name+' (the manager) passed the boss\'s message to you; answer the boss directly. ':''}Answer as ${p.name} in first person, like a real colleague talking face to face: natural, friendly and to the point (2 to 5 sentences unless the boss asks for detail). Use your real recent work above when it helps. If you do not know something, say so honestly. If the request is outside your one skill, refuse politely and put the right colleague's name in "handoff". ${langInstr(mode)}\nReply with ONLY JSON: {"reply":"...","speech":"...","handoff":""} where ${speechInstr(mode)} and "handoff" is empty or the exact name of the colleague who should handle it.`);
       j=parseJSON(raw);if(!j||!j.reply)j={reply:raw.replace(/[{}"]/g,'').slice(0,600),speech:''}}
     log(p.name,j.reply,p.shirt);say(p,j.reply,Math.min(14000,3000+j.reply.length*45));speak(j.reply,p,mode,j.speech);
     S.chat=(S.chat||[]).concat({to:p.key,q,a:j.reply}).slice(-40);save();
+    const h=j.handoff&&Object.values(P).find(x=>x!==p&&x.name.toLowerCase()===String(j.handoff).trim().toLowerCase());
+    if(h&&!via){p.talking=false;await sleep(Math.min(9000,2500+j.reply.length*30));return askPerson(h,q,mode,p)}
   }catch(e){p.bubble=null;log(p.name,helpFor(e),null,true)}
   finally{p.talking=false}
 }
@@ -920,10 +1001,10 @@ const CHATS={
   en:[['Coffee break?','Yes please, extra strong!'],['Busy day today','Yeah, but the final list looks great'],['Plans for the weekend?','Food street with the family!'],['Did you watch the match?','Last over thriller!'],['Biryani or karahi?','Karahi, always!'],['Boss looks happy','We did good work today'],['How is the new product?','Margins look amazing'],['See you early tomorrow?','Sure, if traffic allows']]
 };
 async function cafeLoop(delay){
-  await sleep(delay);
+  await nap(delay);
   for(;;){
-    await sleep(14000+Math.random()*18000);
-    if(office.busy||office.meeting)continue;
+    await nap(14000+Math.random()*18000);
+    if(document.hidden||office.busy||office.meeting)continue;
     const free=p=>!p.job&&!p.path.length&&p.seated&&!p.social&&!p.talking;
     const pairs=FRIENDS.map(([a,b])=>[P[a],P[b]]).filter(([a,b])=>free(a)&&free(b));
     const tbl=CAFE.find(t=>!t.taken);if(!pairs.length||!tbl)continue;
