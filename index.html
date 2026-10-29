@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Silkscreen&family=VT323&family=Chakra+Petch:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
 <style>
 :root{
   --bg:#070d17;--panel:#0c1626;--panel2:#101e33;--line:#1d3350;
@@ -35,7 +36,7 @@ h2{font-size:13px;color:var(--cyan)} h3{font-size:12px;color:var(--yellow)}
 .chip.walking small{color:var(--cyan)}
 .chip.sel{outline:1px solid var(--cyan)}
 .cv{border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#05090f}
-#office{display:block;width:100%;aspect-ratio:1500/668;cursor:pointer}
+#office{display:block;width:100%;cursor:pointer}
 .cv{position:relative}
 .zoom{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
 .zoom button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#0b1626cc;color:var(--white);font-size:16px}
@@ -73,6 +74,9 @@ textarea{resize:vertical;min-height:80px;line-height:1.45}
 .msg{background:#050b14;border:1px solid var(--line);border-left:3px solid var(--c,var(--cyan));border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word}
 .msg b{font-family:var(--pix);font-size:10px;letter-spacing:1px;color:var(--c,var(--cyan));display:block;margin-bottom:3px;font-weight:400}
 .msg.err{--c:var(--red)}
+.msg a.pdf{display:inline-block;margin-top:6px;background:var(--yellow);color:#1a1300;border-radius:6px;padding:4px 10px;text-decoration:none;font-weight:600}
+.tal{height:8px;background:#0b1626;border-radius:4px;overflow:hidden;border:1px solid var(--line)}.tal i{display:block;height:100%;background:linear-gradient(90deg,#46e6ff,#5dff8f)}
+.acad{display:grid;grid-template-columns:1fr 1.2fr 1fr auto;gap:8px;align-items:center}
 .empty{color:var(--muted);font-size:13px;line-height:1.5}
 .sheet{padding:12px;display:flex;flex-direction:column;gap:10px}
 .shead{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -113,9 +117,14 @@ dialog::backdrop{background:#000b}
       <div class="shead">
         <h3>Records sheet</h3>
         <div class="stabs">
-          <button data-s="final" class="act">★ Final products</button>
+          <button data-s="final" class="act">★ Amazon final</button>
+          <button data-s="sourcing">Amazon sourcing</button>
           <button data-s="advanced">Advanced test</button>
           <button data-s="hunted">Hunted</button>
+          <button data-s="ebay">eBay listings</button>
+          <button data-s="ppc">PPC plans</button>
+          <button data-s="listing">Amazon listings</button>
+          <button data-s="clients">Client leads</button>
           <button data-s="findings">Other findings</button>
         </div>
         <div class="sp"><button class="btn ghost sm" id="xlsBtn">Download Excel</button><button class="btn ghost sm" id="clrSheet">Clear</button></div>
@@ -158,6 +167,7 @@ dialog::backdrop{background:#000b}
       <div class="toggles">
         <label><input type="checkbox" id="autoRun" checked> Run after I speak</label>
         <label><input type="checkbox" id="speakOut" checked> Speak answers</label>
+        <label><input type="checkbox" id="autoPdf" checked> PDF report after every task</label>
       </div>
       <div class="row">
         <button class="btn" id="runBtn" style="flex:1">Send task</button>
@@ -166,6 +176,7 @@ dialog::backdrop{background:#000b}
       </div>
       <div class="row">
         <button class="btn ghost" id="meetBtn" style="flex:1">📋 Call meeting</button>
+        <button class="btn ghost" id="acadBtn" style="flex:1">🎓 Academy</button>
       </div>
       <p class="note">Talk to anyone by name: “Ayesha, ye product fail kyun hua?” · Say “meeting” to gather everyone, “meeting khatam” to send them back.</p>
     </section>
@@ -191,7 +202,7 @@ const KEY='agent-office-v3';
 const PRESETS={
   demo:{label:'Demo mode (no AI, test the office)',base:'',model:'demo',key:false},
   groq:{label:'Groq (free API key)',base:'https://api.groq.com/openai/v1',model:'llama-3.3-70b-versatile',key:true},
-  gemini:{label:'Google Gemini (free API key)',base:'https://generativelanguage.googleapis.com/v1beta/openai',model:'gemini-2.0-flash',key:true},
+  gemini:{label:'Google Gemini (free API key)',base:'https://generativelanguage.googleapis.com/v1beta/openai',model:'gemini-flash-latest',key:true},
   openrouter:{label:'OpenRouter (free models)',base:'https://openrouter.ai/api/v1',model:'meta-llama/llama-3.3-70b-instruct:free',key:true},
   ollama:{label:'Ollama (free, on your PC)',base:'http://localhost:11434',model:'llama3.2',key:false},
   custom:{label:'Custom OpenAI-compatible',base:'',model:'',key:true}
@@ -203,7 +214,8 @@ const DEFAULT={
   soul:'You are a friendly, hardworking professional in an AI office. Be practical, specific and honest. Never invent fake data; say when numbers are estimates.',
   settings:{provider:'demo',base:'',model:'demo',key:'',speed:'normal'},
   criteria:{market:'US',category:'Any (avoid gated / restricted)',priceMin:20,priceMax:50,maxReviews:300,minSales:300,maxWeight:'1 kg / 2 lb',budget:'$3,000',perHunter:4,finalCount:5,minMargin:25,notes:'No electronics, no glass, no seasonal, no patented products'},
-  sheet:{findings:[],hunted:[],advanced:[],final:[]}
+  sheet:{findings:[],hunted:[],advanced:[],final:[],sourcing:[],ebay:[],ppc:[],listing:[],clients:[]},
+  academy:null
 };
 let S;
 try{S=JSON.parse(localStorage.getItem(KEY)||'null');
@@ -217,45 +229,61 @@ S.sheet=Object.assign(structuredClone(DEFAULT.sheet),S.sheet);
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 
 /* ================= GEOMETRY ================= */
-const W=1520,H=744,RW=248,X0=16,TY=44,TH=280,CY=TY+TH,BY=CY+100,BH=300,LANE=CY+50;
+const RW=248,HALL=56,XL=16,X0=XL+HALL,NC=8,XR=X0+NC*RW,XE=XR+HALL,TY=44;
+const ROWH=[280,300,300,300],ROWY=[TY,TY+380,TY+780,TY+1180];
+const CY=ROWY[0]+ROWH[0],BY=ROWY[1],C2=ROWY[1]+ROWH[1],B2=ROWY[2],C3=ROWY[2]+ROWH[2],B3=ROWY[3],YE=ROWY[3]+ROWH[3],TH=280,BH=300,B2H=300;
+const LANES=[CY+50,C2+50,C3+50],LANE=LANES[0],LANE2=LANES[1],HALLX=[XL+HALL/2,XR+HALL/2],W=XE+16,H=YE+20;
 const DEPTS=[
-  {key:'manager',name:'Manager Office',row:0,col:0,span:1,floor:['#2a2238','#2e263e'],accent:'#ffe066'},
-  {key:'research',name:'Research Dept',row:0,col:1,span:1,floor:['#17283b','#1b2e43'],accent:'#46e6ff'},
-  {key:'hunt',name:'Amazon Hunting Department',row:0,col:2,span:2,cabins:3,floor:['#2b2418','#30291c'],accent:'#ff9a3c'},
-  {key:'content',name:'Content & Writing',row:0,col:4,span:1,floor:['#1b2b23','#1f3028'],accent:'#5dff8f'},
-  {key:'marketing',name:'Marketing & Ads',row:0,col:5,span:1,floor:['#2c1c2a','#32202f'],accent:'#ff7ad9'},
-  {key:'review',name:'Quality Review',row:1,col:0,span:1,floor:['#1d2135','#21263b'],accent:'#c792ff'},
-  {key:'records',name:'Records & Sheets',row:1,col:1,span:1,floor:['#182a2d','#1c3033'],accent:'#7dffea'},
-  {key:'adv',name:'Amazon Advance Hunting Department',row:1,col:2,span:2,cabins:3,floor:['#2a2614','#2f2a17'],accent:'#ffd166'},
-  {key:'pantry',name:'Cafe',row:1,col:4,span:1,floor:['#352d24','#3b3228'],accent:'#ffb36b'},
-  {key:'meeting',name:'Meeting Room',row:1,col:5,span:1,floor:['#202832','#242d38'],accent:'#9fb7d4'}
+  {key:'manager',name:'Manager Office',row:0,col:0,span:1,type:'wood',accent:'#d99a00'},
+  {key:'research',name:'Research Dept',row:0,col:1,span:1,type:'wood',accent:'#1f8fc4'},
+  {key:'hunt',name:'Amazon Hunting Department',row:0,col:2,span:2,cabins:3,type:'carpet',accent:'#f07c12'},
+  {key:'content',name:'Content & Writing',row:0,col:4,span:1,type:'wood',accent:'#23995a'},
+  {key:'marketing',name:'Marketing & Ads',row:0,col:5,span:1,type:'wood',accent:'#d43f93'},
+  {key:'listing',name:'Amazon Listing Optimization',row:0,col:6,span:2,cabins:2,type:'carpet',accent:'#5b9a2f'},
+  {key:'review',name:'Quality Review',row:1,col:0,span:1,type:'wood',accent:'#7c56e0'},
+  {key:'records',name:'Records & Sheets',row:1,col:1,span:1,type:'wood',accent:'#0f9488'},
+  {key:'adv',name:'Amazon Advance Hunting Department',row:1,col:2,span:2,cabins:3,type:'carpet',accent:'#d39200'},
+  {key:'pantry',name:'Kitchen & Cafe',row:1,col:4,span:1,type:'tile',accent:'#d9692a'},
+  {key:'meeting',name:'Meeting Room',row:1,col:5,span:1,type:'meet',accent:'#4f74a0'},
+  {key:'ppc',name:'Amazon PPC Department',row:1,col:6,span:2,cabins:2,type:'carpet',accent:'#d6345a'},
+  {key:'ebay',name:'eBay Product Hunting Department',row:2,col:0,span:2,cabins:4,type:'carpet',accent:'#1789c9'},
+  {key:'ebaysrc',name:'eBay Sourcing (Dropship)',row:2,col:2,span:1,type:'wood',accent:'#2e8fa6'},
+  {key:'amzsrc',name:'Amazon Sourcing',row:2,col:3,span:1,type:'wood',accent:'#d96f00'},
+  {key:'clients',name:'Client Hunting Department',row:2,col:4,span:4,cabins:4,labels:['USA','UK','UAE','PAKISTAN'],type:'carpet',accent:'#6d4cf0'},
+  {key:'training',name:'Training Academy',row:3,col:0,span:2,seats:[[60,90],[150,170],[260,170],[370,170]],type:'wood',accent:'#4f5bd5'},
+  {key:'newhires',name:'New Hires Bay',row:3,col:2,span:1,seats:[[60,150],[170,150]],type:'wood',accent:'#0d9488'},
+  {key:'staff',name:'Staff Room (Office Boys)',row:3,col:3,span:1,staff:true,type:'tile',accent:'#556070'},
+  {key:'lounge',name:'Reception & Lounge',row:3,col:4,span:4,type:'wood',accent:'#b07a32'}
 ];
 const ROOMS={},CABS=[],DOORS=[];
 const pt=(x,y)=>({x,y});
 DEPTS.forEach(d=>{
-  const x=X0+d.col*RW,w=d.span*RW,y=d.row?BY:TY,h=d.row?BH:TH;
-  const r={...d,x,y,w,h,dx:d.span>1?x+w/2+40:x+w-56};
+  const x=X0+d.col*RW,w=d.span*RW,y=ROWY[d.row],h=ROWH[d.row];
+  const r={...d,x,y,w,h,dx:d.span>1?x+w/2+40:x+w-56,lane:LANES[Math.max(0,d.row-1)]};
   r.wallY=d.row?y:y+h;
   r.doorIn=d.row?pt(r.dx,y+22):pt(r.dx,y+h-22);r.doorOut=d.row?pt(r.dx,y-22):pt(r.dx,y+h+22);
   if(d.cabins){r.fy=d.row?y+120:y+150;r.zone=d.row?[y+36,r.fy-26]:[r.fy+26,y+h-34]}
   else r.zone=d.row?[y+40,y+150-26]:[y+100+46,y+h-34];
+  if(d.key==='training')r.zone=[y+40,y+64];
   r.cabs=[];ROOMS[d.key]=r;
   DOORS.push({x:r.dx,y:r.wallY,half:20,T:6,row:d.row,accent:r.accent,open:0});
 });
 function makeCab(r,i){
+  if(r.cabs[i])return r.cabs[i];
   let c;
-  if(r.cabins){
-    const cw=(r.w-12)/r.cabins,cx0=r.x+6+i*cw,sx=cx0+58,cdx=cx0+cw-26;
-    const deskTop=r.row?r.fy+50:r.y+70,seat=pt(sx,deskTop+15),vY=deskTop+52,side=sx+54;
+  if(r.staff){const sx=r.x+30+i*46,seat=pt(sx,r.y+192);c={room:r.key,i,sx,deskTop:r.y+177,seat,noDesk:true,enterSeat:[pt(sx,r.y+120),seat],exitSeat:[pt(sx,r.y+120)],enterVisit:[pt(sx,r.y+120),pt(sx,r.y+165)],exitVisit:[pt(sx,r.y+120)]}}
+  else if(r.cabins){
+    const cw=(r.w-12)/r.cabins,cx0=r.x+6+i*cw,sx=cx0+58,cdx=cx0+cw-24;
+    const deskTop=r.row?r.fy+50:r.y+70,seat=pt(sx,deskTop+15),vY=deskTop+52,side=Math.min(sx+52,cdx-16);
     const dOut=r.row?pt(cdx,r.fy-18):pt(cdx,r.fy+18),dIn=r.row?pt(cdx,r.fy+16):pt(cdx,r.fy-16);
     c={room:r.key,i,cx0,cw,sx,cdx,deskTop,seat,
       enterSeat:[dOut,dIn,pt(side,dIn.y),pt(side,seat.y),seat],exitSeat:[pt(side,seat.y),pt(side,dIn.y),dIn,dOut],
       enterVisit:[dOut,dIn,pt(side,dIn.y),pt(side,vY),pt(sx+10,vY)],exitVisit:[pt(side,vY),pt(side,dIn.y),dIn,dOut]};
     DOORS.push({x:cdx,y:r.fy,half:13,T:4,row:r.row,accent:r.accent,open:0,cab:true});
   }else{
-    const sx=r.x+100,deskTop=r.row?r.y+150:r.y+100,seat=pt(sx,deskTop+15),vY=deskTop+62;
+    const st=r.seats?r.seats[i]:[100,r.row?150:100],sx=r.x+st[0],deskTop=r.y+st[1],seat=pt(sx,deskTop+15),vY=deskTop+62;
     const ap=r.row?pt(sx+52,deskTop-20):pt(sx+52,deskTop+44);
-    c={room:r.key,i:0,sx,deskTop,seat,
+    c={room:r.key,i,sx,deskTop,seat,
       enterSeat:[ap,pt(sx+52,seat.y),seat],exitSeat:[pt(sx+52,seat.y),ap],
       enterVisit:(r.row?[ap]:[]).concat([pt(sx+56,vY),pt(sx+16,vY)]),exitVisit:[pt(sx+56,vY)].concat(r.row?[ap]:[])};
   }
@@ -268,7 +296,8 @@ const CAFE=(()=>{const r=ROOMS.pantry,x=r.x,y=r.y;return[
 const MEET_SPOTS=(()=>{const r=ROOMS.meeting,x=r.x,y=r.y,s=[{x:x+30,y:y+172,face:'right',via:[pt(x+30,y+100)]}];
   for(let i=0;i<5;i++)s.push({x:x+64+i*28,y:y+130,face:'down',via:[]});
   for(let i=0;i<5;i++)s.push({x:x+64+i*28,y:y+214,face:'up',via:[pt(x+230,y+100),pt(x+230,y+242)]});
-  s.push({x:x+222,y:y+172,face:'left',via:[pt(x+230,y+100)]});return s})();
+  s.push({x:x+222,y:y+172,face:'left',via:[pt(x+230,y+100)]});
+  for(let row=0;row<3;row++)for(let i=0;i<8;i++)s.push({x:x+30+i*26,y:y+236+row*26,face:'up',via:[pt(x+230,y+100),pt(x+230,y+236+row*26)]});return s})();
 
 /* ================= PEOPLE ================= */
 const PEOPLE0=[
@@ -283,24 +312,46 @@ const PEOPLE0=[
   {key:'hunt3',room:'hunt',cab:2,name:'Fatima',role:'Amazon hunter. Focus: office, travel, baby (non-gated) and gift niches.',shirt:'#ffb703',pants:'#2e2a44',skin:'#e3b48e',hair:'#7a2e4f',style:'hijab'},
   {key:'adv1',room:'adv',cab:0,name:'Kamran',role:'Senior analyst and lead. Profit math, ROI, PPC costs and the final selection.',shirt:'#ffd166',pants:'#1f2a3a',skin:'#cf9a72',hair:'#140d08',style:'short',glasses:true},
   {key:'adv2',room:'adv',cab:1,name:'Ayesha',role:'Advanced analyst. Deep competition, review and listing-quality checks.',shirt:'#f7c59f',pants:'#2b2b3a',skin:'#e6b892',hair:'#2a160c',style:'long'},
-  {key:'adv3',room:'adv',cab:2,name:'Danish',role:'Advanced analyst. Risks: patents, gating, seasonality, sourcing and quality.',shirt:'#e0a458',pants:'#33302a',skin:'#b98058',hair:'#0e0905',style:'curly'}
+  {key:'adv3',room:'adv',cab:2,name:'Danish',role:'Advanced analyst. Risks: patents, gating, seasonality, sourcing and quality.',shirt:'#e0a458',pants:'#33302a',skin:'#b98058',hair:'#0e0905',style:'curly'},
+  {key:'listing',room:'listing',cab:0,name:'Sana',role:'Amazon listing optimization expert: titles, bullets, descriptions, backend keywords and image plans.',shirt:'#9be564',pants:'#2b2b3a',skin:'#e2b28c',hair:'#2a160c',style:'long'},
+  {key:'ppc',room:'ppc',cab:0,name:'Faisal',role:'Amazon PPC specialist: keyword research and campaign plans from an ASIN.',shirt:'#ef476f',pants:'#22304a',skin:'#c48a5e',hair:'#130c08',style:'short'},
+  {key:'ebay1',room:'ebay',cab:0,name:'Hassan',role:'eBay dropshipping product hunter. Focus: home, garden, tools and auto accessories.',shirt:'#118ab2',pants:'#2b2b3a',skin:'#c99068',hair:'#140d08',style:'curly'},
+  {key:'ebay2',room:'ebay',cab:1,name:'Mariam',role:'eBay dropshipping product hunter. Focus: pets, beauty tools, gadgets and fitness.',shirt:'#06d6a0',pants:'#2e2a44',skin:'#e3b48e',hair:'#3d405b',style:'hijab'},
+  {key:'ebay3',room:'ebay',cab:2,name:'Saad',role:'eBay SEO: 80-character titles, item specifics, category and keywords.',shirt:'#ffd60a',pants:'#24324a',skin:'#b97c55',hair:'#120c08',style:'cap',cap:'#e63946'},
+  {key:'ebay4',room:'ebay',cab:3,name:'Hira',role:'eBay listing images and descriptions.',shirt:'#f72585',pants:'#262a3a',skin:'#d6a07c',hair:'#2a160c',style:'bun'},
+  {key:'ebaysrc',room:'ebaysrc',name:'Asad',role:'eBay dropship sourcing: finds wholesale dropship suppliers, costs and shipping times, and passes or fails each product.',shirt:'#8ecae6',pants:'#2d3142',skin:'#c68d63',hair:'#1b120c',style:'short'},
+  {key:'amzsrc',room:'amzsrc',name:'Noman',role:'Amazon sourcing: finds how to get each final product from verified Alibaba manufacturers.',shirt:'#fb8500',pants:'#1f2a3a',skin:'#cf9a72',hair:'#140d08',style:'short',glasses:true},
+  {key:'listing2',room:'listing',cab:1,name:'Anum',role:'Amazon listing images and A+ content designer.',shirt:'#a3d977',pants:'#2b2b3a',skin:'#e3b48e',hair:'#2a160c',style:'bun'},
+  {key:'ppc2',room:'ppc',cab:1,name:'Zain',role:'Amazon PPC campaign builder: campaign structure, bids, budgets and the 4-week plan.',shirt:'#ff8fab',pants:'#22304a',skin:'#c68d63',hair:'#130c08',style:'cap',cap:'#111827'},
+  {key:'cl1',room:'clients',cab:0,name:'Danyal',role:'Client hunter for the USA: finds Amazon private label sellers and brands who need agency services.',shirt:'#3b82f6',pants:'#1f2937',skin:'#c99068',hair:'#140d08',style:'short'},
+  {key:'cl2',room:'clients',cab:1,name:'Ayaan',role:'Client hunter for the UK: finds Amazon sellers and brands who need agency services.',shirt:'#ef4444',pants:'#1f2937',skin:'#d6a07c',hair:'#1b120c',style:'curly'},
+  {key:'cl3',room:'clients',cab:2,name:'Rida',role:'Client hunter for the UAE: finds Amazon sellers and brands who need agency services.',shirt:'#10b981',pants:'#2e2a44',skin:'#e3b48e',hair:'#1f2937',style:'hijab'},
+  {key:'cl4',room:'clients',cab:3,name:'Kashif',role:'Client hunter for Pakistan: finds sellers and businesses who want to start or grow on Amazon.',shirt:'#16a34a',pants:'#1f2937',skin:'#b97c55',hair:'#120c08',style:'cap',cap:'#14532d'},
+  {key:'ob1',room:'staff',cab:0,name:'Shakeel',role:'Office boy.',shirt:'#f1f5f9',pants:'#1f2937',skin:'#b97c55',hair:'#120c08',style:'cap',cap:'#0ea5e9'},
+  {key:'ob2',room:'staff',cab:1,name:'Rafiq',role:'Office boy.',shirt:'#f1f5f9',pants:'#1f2937',skin:'#c68d63',hair:'#1b120c',style:'short'},
+  {key:'ob3',room:'staff',cab:2,name:'Jamil',role:'Office boy.',shirt:'#f1f5f9',pants:'#1f2937',skin:'#a86f4a',hair:'#0e0905',style:'cap',cap:'#0ea5e9'},
+  {key:'ob4',room:'staff',cab:3,name:'Bashir',role:'Office boy.',shirt:'#f1f5f9',pants:'#1f2937',skin:'#c48a5e',hair:'#4a4a4a',style:'short'},
+  {key:'ob5',room:'staff',cab:4,name:'Yousaf',role:'Office boy.',shirt:'#f1f5f9',pants:'#1f2937',skin:'#b98058',hair:'#140d08',style:'curly'},
+  {key:'trainer',room:'training',cab:0,name:'Rehan',role:'Head trainer at the Training Academy. Teaches new agents and spots talent.',shirt:'#3a6ea5',pants:'#22223a',skin:'#c99068',hair:'#4a4a4a',style:'short',glasses:true}
 ];
 const HUNTERS=['hunt1','hunt2','hunt3'],ANALYSTS=['adv1','adv2','adv3'];
 const SKILL0={manager:'Managing the team: understanding the boss, giving work to the right department, and reporting back',research:'Research: facts, trends, competitors and market data',
   content:'Writing: product listings, captions, scripts, emails and posts',marketing:'Marketing: ads, audiences, offers, pricing and launch plans',review:'Quality review: checking work, finding mistakes and risks',
   records:'Records: filing work into the sheet and reading numbers from it',hunt1:'Amazon product hunting (home, kitchen, organization)',hunt2:'Amazon product hunting (pets, sports, fitness, outdoor)',
-  hunt3:'Amazon product hunting (office, travel, baby non-gated, gifts)',adv1:'Advanced testing of Amazon products: profit, ROI, PPC and final selection',adv2:'Advanced testing of Amazon products: competition and reviews',adv3:'Advanced testing of Amazon products: risks, patents, gating and sourcing'};
-const FEMALE=new Set(['content','marketing','records','hunt3','adv2']);
+  hunt3:'Amazon product hunting (office, travel, baby non-gated, gifts)',listing:'Amazon listing optimization: title, bullets, description, backend keywords, images',ppc:'Amazon PPC: keywords and campaign plans from an ASIN',ebay1:'eBay dropshipping product hunting (home, garden, tools, auto)',ebay2:'eBay dropshipping product hunting (pets, beauty, gadgets, fitness)',ebay3:'eBay SEO titles and item specifics',ebay4:'eBay listing images and descriptions',ebaysrc:'eBay dropship sourcing: wholesale suppliers, costs, shipping, pass or fail',amzsrc:'Amazon sourcing: verified Alibaba manufacturer search and supplier checklist',trainer:'Training new agents and judging their talent',listing2:'Amazon listing images and A+ content',ppc2:'Amazon PPC campaign structure, bids and budgets',cl1:'Finding agency clients in the USA',cl2:'Finding agency clients in the UK',cl3:'Finding agency clients in the UAE',cl4:'Finding agency clients in Pakistan',ob1:'Office boy: cleaning and bringing tea, coffee and water',ob2:'Office boy: cleaning and bringing tea, coffee and water',ob3:'Office boy: cleaning and bringing tea, coffee and water',ob4:'Office boy: cleaning and bringing tea, coffee and water',ob5:'Office boy: cleaning and bringing tea, coffee and water',adv1:'Advanced testing of Amazon products: profit, ROI, PPC and final selection',adv2:'Advanced testing of Amazon products: competition and reviews',adv3:'Advanced testing of Amazon products: risks, patents, gating and sourcing'};
+const FEMALE=new Set(['content','marketing','records','hunt3','adv2','listing','ebay2','ebay4','listing2','cl3']);
 const ALIASES={manager:['आरिफ','عارف','aarif'],research:['अली','علی'],content:['सारा','سارہ','sarah'],marketing:['ज़ारा','जारा','زارا','zahra'],review:['हमज़ा','हमजा','حمزہ'],records:['नादिया','نادیہ'],
-  hunt1:['बिलाल','بلال'],hunt2:['उस्मान','عثمان'],hunt3:['फातिमा','फ़ातिमा','فاطمہ'],adv1:['कामरान','کامران'],adv2:['आयशा','आइशा','عائشہ','aisha'],adv3:['दानिश','دانش']};
-const FRIENDS=[['research','content'],['marketing','hunt3'],['hunt1','hunt2'],['adv1','review'],['adv2','records'],['adv3','manager']];
+  hunt1:['बिलाल','بلال'],hunt2:['उस्मान','عثمان'],hunt3:['फातिमा','फ़ातिमा','فاطمہ'],adv1:['कामरान','کامران'],adv2:['आयशा','आइशा','عائشہ','aisha'],adv3:['दानिश','دانش'],
+  listing:['सना','ثنا'],ppc:['फ़ैसल','फैसल','فیصل'],ebay1:['हसन','حسن'],ebay2:['मरियम','مریم','maryam'],ebay3:['साद','سعد'],ebay4:['हिरा','हीरा','حرا'],ebaysrc:['असद','اسد'],amzsrc:['नोमान','نعمان'],trainer:['रेहान','ریحان'],listing2:['अनम','انعم'],ppc2:['ज़ैन','जैन','زین'],cl1:['दानियाल','دانیال','daniyal'],cl2:['अयान','ایان'],cl3:['रिदा','ردا'],cl4:['काशिफ','کاشف'],ob1:['शकील','شکیل'],ob2:['रफ़ीक','रफीक','رفیق'],ob3:['जमील','جمیل'],ob4:['बशीर','بشیر'],ob5:['यूसुफ','یوسف']};
+const FRIENDS=[['research','content'],['marketing','hunt3'],['hunt1','hunt2'],['adv1','review'],['adv2','records'],['adv3','manager'],['listing','ppc'],['ebay1','ebay2'],['ebay3','ebay4'],['ebaysrc','amzsrc'],['listing2','ppc2'],['cl1','cl2'],['cl3','cl4']];
 const friendOf=p=>{const f=FRIENDS.find(x=>x.includes(p.key));return f?P[f[0]===p.key?f[1]:f[0]].name:'everyone'};
-const P={};
-PEOPLE0.forEach((d,i)=>{
-  const o=Object.assign({skill:SKILL0[d.key]},d,S.people[d.key]||{}),cab=makeCab(ROOMS[d.room],d.cab||0);
-  P[d.key]=Object.assign(o,{cabRef:cab,x:cab.seat.x,y:cab.seat.y,room:d.room,seated:true,dir:'down',path:[],dist:0,exitVia:cab.exitSeat,
+const P={};let PI=0;
+function makePerson(d){
+  const i=PI++,o=Object.assign({skill:SKILL0[d.key]||d.skill||'Helping the team'},d,S.people[d.key]||{}),cab=makeCab(ROOMS[d.room],d.cab||0);
+  return P[d.key]=Object.assign(o,{cabRef:cab,x:cab.seat.x,y:cab.seat.y,room:d.room,seated:true,dir:'down',path:[],dist:0,exitVia:cab.exitSeat,
     lock:Promise.resolve(),typing:false,carry:false,bubble:null,job:false,lane:(i%3)-1,vOff:((i%5)-2)*11,seed:Math.random()});
-});
+}
+PEOPLE0.forEach(makePerson);
 const office={busy:false,meeting:false};
 let online=false,selected='manager';
 const SPEEDS={slow:42,normal:66,fast:130};
@@ -308,7 +359,9 @@ const SPEEDS={slow:42,normal:66,fast:130};
 function walkTo(p,roomKey,entry,exitAfter,after){
   return new Promise(res=>{
     const pts=[...p.exitVia];p.exitVia=[];p.seated=false;
-    if(p.room!==roomKey){const s=ROOMS[p.room],d=ROOMS[roomKey],L=LANE+p.lane*12;pts.push(s.doorIn,s.doorOut,pt(s.doorOut.x,L),pt(d.doorOut.x,L),d.doorOut,d.doorIn)}
+    if(p.room!==roomKey){const s=ROOMS[p.room],d=ROOMS[roomKey],o=p.lane*12;pts.push(s.doorIn,s.doorOut,pt(s.doorOut.x,s.lane+o));
+      if(s.lane!==d.lane){const cost=hx=>Math.abs(s.doorOut.x-hx)+Math.abs(d.doorOut.x-hx),hx=cost(HALLX[0])<=cost(HALLX[1])?HALLX[0]:HALLX[1];pts.push(pt(hx+o*0.6,s.lane+o),pt(hx+o*0.6,d.lane+o))}
+      pts.push(pt(d.doorOut.x,d.lane+o),d.doorOut,d.doorIn)}
     pts.push(...entry);
     p.onArrive=()=>{p.room=roomKey;p.exitVia=exitAfter;p.onArrive=null;after&&after();res()};
     p.path=pts.map(q=>pt(q.x,q.y));if(!p.path.length)p.onArrive();else if(document.hidden)finishWalk(p);
@@ -350,7 +403,7 @@ async function idleLoop(p){
 
 /* ================= 3D OFFICE (isometric renderer) ================= */
 const cv=$('office'),g=cv.getContext('2d');
-const KY=0.8,KZ=0.9,OX=-10,OY=82,BGW=1500,BGH=668,WALL=84,DOORH=66;
+const KY=0.8,KZ=0.9,OX=-10,OY=82,BGW=XE-2,BGH=Math.ceil((YE+6)*0.8+84),WALL=84,DOORH=66;
 const pr=(x,y,z=0)=>[x+OX,y*KY-z*KZ+OY];
 const V={z:1,px:0,py:0,user:false,dpr:1};
 const setT=(a,b,c,d,e,f)=>g.setTransform(a*V.z,b*V.z,c*V.z,d*V.z,e*V.z+V.px,f*V.z+V.py);
@@ -371,15 +424,15 @@ function textW(c,text,size){c.save();c.font=`${size}px Silkscreen, monospace`;co
 
 /* ---- static scene ---- */
 const STATIC=[];const add=(k,f)=>STATIC.push({k,f});
-function plantAt(x,y,s=1){add(y+10,()=>{box(g,x,y,x+12*s,y+12*s,0,12*s,'#8a5a35');const [cx,cy]=pr(x+6*s,y+6*s,12*s);
+function plantAt(x,y,s=1){add(y+10,()=>{box(g,x,y,x+12*s,y+12*s,0,12*s,'#ecebe7');const [cx,cy]=pr(x+6*s,y+6*s,12*s);
   [[0,-8,11,'#2f8f52'],[-6,-14,8,'#3aa862'],[6,-15,8,'#46c06f'],[0,-22,7,'#5ad17f']].forEach(([dx,dy,r,c])=>{g.fillStyle=c;g.beginPath();g.arc(cx+dx*s,cy+dy*s,r*s,0,7);g.fill()})})}
-function shelfAt(x,y,w){add(y+6,()=>{box(g,x,y,x+w,y+10,0,62,'#5a3d26');const cs=['#d64545','#4a7fd4','#e9c46a','#3fbf7f','#c792ff','#f28c38'];
+function shelfAt(x,y,w){add(y+6,()=>{box(g,x,y,x+w,y+10,0,62,'#e8e2d6');const cs=['#d64545','#4a7fd4','#e9c46a','#3fbf7f','#c792ff','#f28c38'];
   for(let i=0;i<w/7-1;i++)[[6,26],[34,56]].forEach(([a,b2],j)=>planeY(g,y+10,x+3+i*7,x+8+i*7,a,b2-(i%3)*2,cs[(i+j*3)%6]));planeY(g,y+10,x,x+w,30,32,'#3e2a1a')})}
-function cabinetAt(x,y){add(y+8,()=>{box(g,x,y,x+24,y+16,0,40,'#6c7a8c');for(let i=0;i<3;i++){planeY(g,y+16,x+2,x+22,3+i*12,12+i*12,'#8796aa');planeY(g,y+16,x+9,x+15,7+i*12,8+i*12,'#dfe6ee')}})}
+function cabinetAt(x,y){add(y+8,()=>{box(g,x,y,x+24,y+16,0,40,'#c3cad3');for(let i=0;i<3;i++){planeY(g,y+16,x+2,x+22,3+i*12,12+i*12,'#dde3ea');planeY(g,y+16,x+9,x+15,7+i*12,8+i*12,'#dfe6ee')}})}
 function boxesAt(x,y){add(y+11,()=>{box(g,x,y,x+28,y+22,0,20,'#b7854e');planeY(g,y+22,x,x+28,9,12,'#e8d3a8');box(g,x+4,y+3,x+24,y+19,20,36,'#c49359');planeY(g,y+19,x+4,x+24,26,29,'#e8d3a8')})}
 function sofaAt(x,y,w,c){add(y+12,()=>{box(g,x,y,x+w,y+8,0,30,shade(c,-10));box(g,x,y+8,x+w,y+26,0,14,c);box(g,x-6,y,x,y+26,0,20,shade(c,-25));box(g,x+w,y,x+w+6,y+26,0,20,shade(c,-25))})}
 function tableAt(x,y,w,d,col='#8a6642'){add(y+d/2,()=>{box(g,x+w/2-4,y+d/2-4,x+w/2+4,y+d/2+4,0,22,'#3a3a44');box(g,x,y,x+w,y+d,22,26,col)})}
-function stoolAt(x,y){add(y+6,()=>{box(g,x+4,y+4,x+8,y+8,0,12,'#333a48');box(g,x,y,x+12,y+12,12,15,'#2b3445')})}
+function stoolAt(x,y){add(y+6,()=>{box(g,x+4,y+4,x+8,y+8,0,12,'#4b5563');box(g,x,y,x+12,y+12,12,15,'#2b2d33')})}
 function boardStand(x,y,w,chart){add(y+3,()=>{box(g,x+4,y,x+7,y+4,0,30,'#555');box(g,x+w-7,y,x+w-4,y+4,0,30,'#555');box(g,x,y,x+w,y+3,28,64,'#e8eef5');
   if(chart)[10,18,8,22,28].forEach((v,i)=>planeY(g,y+3,x+8+i*(w-16)/5,x+8+i*(w-16)/5+(w-16)/7,32,32+v,i%2?'#ff7ad9':'#46e6ff'));else{planeY(g,y+3,x+6,x+w*.6,52,54,'#4a7fd4');planeY(g,y+3,x+6,x+w*.4,44,46,'#d64545');planeY(g,y+3,x+6,x+w*.5,36,38,'#4a7fd4')}})}
 
@@ -395,97 +448,121 @@ function glassLineY(y,x0,x1,gaps){
     add(y,()=>box(g,g0-3,y-3,g0,y+3,0,WALL,'#8aa0c0'));add(y,()=>box(g,g1,y-3,g1+3,y+3,0,WALL,'#8aa0c0'));a=g1});
   glassY(y,a,x1);
 }
+function halfWallY(y,x0,x1){for(let a=x0;a<x1-0.5;a+=24){const b2=Math.min(x1,a+24);add(y-2+(a+b2)*1e-5,()=>{
+  box(g,a,y-3,b2,y+3,0,30,'#f4f3ef',{south:'#e9e7e1',top:'#ffffff',east:'#dcd9d2'});
+  planeY(g,y,a,b2,30,WALL,'rgba(185,215,235,0.16)');poly(g,[pr(a,y,WALL),pr(b2,y,WALL)],null,'#8d97a3',2);poly(g,[pr(a,y,30),pr(a,y,WALL)],null,'rgba(110,125,140,0.45)',1)})}}
+function wallX(x,y0,y1){for(let a=y0;a<y1-0.5;a+=24){const b2=Math.min(y1,a+24);add((a+b2)/2-2+x*1e-5,()=>box(g,x-3,a,x+3,b2,0,WALL,'#f4f3ef',{top:'#ffffff',south:'#e3e0d9'}))}}
+function lineY(y,x0,x1,gaps){let a=x0;gaps.sort((p,q)=>p[0]-q[0]).forEach(([g0,g1])=>{halfWallY(y,a,g0);
+    for(let c=g0;c<g1-0.5;c+=24){const d=Math.min(g1,c+24);add(y-2+(c+d)*1e-5,()=>{planeY(g,y,c,d,DOORH,WALL,'rgba(185,215,235,0.16)');poly(g,[pr(c,y,WALL),pr(d,y,WALL)],null,'#8d97a3',2)})}
+    add(y,()=>{box(g,g0-3,y-3,g0,y+3,0,WALL,'#9aa3ad');box(g,g1,y-3,g1+3,y+3,0,WALL,'#9aa3ad')});a=g1});halfWallY(y,a,x1)}
+function planter(x,y,w){add(y+12,()=>{box(g,x,y,x+w,y+14,0,16,'#b58a5a',{top:'#3d6b35'});const n=Math.max(2,Math.round(w/22));for(let i=0;i<n;i++){const [cx,cy]=pr(x+(i+0.5)*w/n,y+7,18);[[0,-2,10,'#3f8f4a'],[-4,-8,7,'#4fa85a'],[4,-9,7,'#5cbf68']].forEach(([dx,dy,r,c])=>{g.fillStyle=c;g.beginPath();g.arc(cx+dx,cy+dy,r,0,7);g.fill()})}})}
+function plate(y,x0,text,size,bg,fg,z0,z1){add(y+1,()=>{const w=textW(g,text,size)+16;planeY(g,y+3.2,x0,x0+w,z0,z1,bg);textY(g,y+3.2,x0+w/2,(z0+z1)/2,text,size,fg)})}
 function buildStatic(){
   STATIC.length=0;sd=7;
-  const top=Object.values(ROOMS).filter(r=>!r.row);
-  // outer walls
-  add(-1e9,()=>{box(g,10,30,1510,44,0,WALL,'#2a3850');planeY(g,44,10,1510,0,5,'#1b2536');
-    top.forEach(r=>{const n=r.span*3,ww=44;for(let i=0;i<n;i++){const wx=r.x+18+i*(r.w-36)/n+((r.w-36)/n-ww)/2;
-      if(r.key==='research'&&i===0||r.key==='marketing'&&i===0)continue;
-      planeY(g,44,wx,wx+ww,24,72,'#22416e');planeY(g,44,wx,wx+ww,24,40,'#e07a5f55');planeY(g,44,wx,wx+ww,24,30,'#f4a26166');
-      for(let k=0;k<5;k++){const lx=wx+4+((i*7+k*13)%36),lz=27+((k*11+i*5)%12);planeY(g,44,lx,lx+2,lz,lz+2,'#ffe08a')}
-      poly(g,[pr(wx,44,24),pr(wx+ww,44,24),pr(wx+ww,44,72),pr(wx,44,72)],null,'#8aa0c0',2);poly(g,[pr(wx+ww/2,44,24),pr(wx+ww/2,44,72)],null,'#8aa0c0',1.5)}});
-    // wall boards
-    [['research',20,70],['marketing',20,70,true]].forEach(([k,ox,w,ch])=>{const r=ROOMS[k],x=r.x+ox;planeY(g,44.5,x,x+w,30,64,'#e8eef5','#9aa8b8');
-      if(ch)[10,16,8,20,24].forEach((v,i)=>planeY(g,44.5,x+8+i*11,x+15+i*11,33,33+v,i%2?'#ff7ad9':'#46e6ff'));else{planeY(g,44.5,x+6,x+40,54,56,'#4a7fd4');planeY(g,44.5,x+6,x+30,46,48,'#d64545')}})});
-  add(-1e9+1,()=>box(g,10,30,16,730,0,WALL,'#2a3850'));
-  add(1e9,()=>box(g,10,724,1510,730,0,12,'#2a3850'));add(1e9+1,()=>box(g,1504,30,1510,730,0,12,'#2a3850'));
-  // corridor glass + dividers
-  glassLineY(CY,16,1504,Object.values(ROOMS).filter(r=>!r.row).map(r=>[r.dx-20,r.dx+20]));
-  glassLineY(BY,16,1504,Object.values(ROOMS).filter(r=>r.row).map(r=>[r.dx-20,r.dx+20]));
-  [1,2,4,5].forEach(k=>{const x=X0+k*RW;glassX(x,TY,CY);glassX(x,BY,BY+BH)});
-  // cabins
-  ['hunt','adv'].forEach(key=>{const r=ROOMS[key],cw=(r.w-12)/3,y0=r.row?r.fy:TY,y1=r.row?BY+BH:r.fy;
-    for(let i=1;i<3;i++)glassX(r.x+6+i*cw,y0,y1);
-    glassLineY(r.fy,r.x+6,r.x+r.w-6,r.cabs.map(c=>[c.cdx-13,c.cdx+13]));
-    r.cabs.forEach((c,i)=>{const px=c.cx0+12,tx='CABIN '+(i+1);add(r.fy+1,()=>{const w=textW(g,tx,9)+10;planeY(g,r.fy,px,px+w,54,64,shade(r.accent,-110));textY(g,r.fy,px+w/2,59,tx,9,r.accent)})});
-    r.cabs.forEach(c=>{if(r.row){plantAt(c.cx0+c.cw-26,r.y+r.h-36)}else{boxesAt(c.cx0+c.cw-40,r.y+12)}});
+  // outer glass curtain wall (north) + exit
+  add(-1e9,()=>{box(g,10,30,XE+6,44,0,WALL,'#5b6470',{top:'#7a8491',south:'#5b6470'});
+    planeY(g,44,10,XE+6,4,WALL-4,'rgba(205,228,245,0.95)');
+    for(let x=10;x<XE+6;x+=44){poly(g,[pr(x,44,0),pr(x,44,WALL)],null,'#5b6470',2)}
+    poly(g,[pr(10,44,WALL*0.55),pr(XE+6,44,WALL*0.55)],null,'#7d8794',1.5);planeY(g,44,10,XE+6,0,4,'#4b535e');
+    const ex=XL+HALL/2;planeY(g,44.5,ex-18,ex+18,0,DOORH,'#2f855a');planeY(g,44.6,ex-15,ex+15,8,DOORH-4,'#38a169');planeY(g,44.7,ex+8,ex+11,30,34,'#e2e8f0');
+    planeY(g,44.7,ex-20,ex+20,DOORH+4,DOORH+16,'#16a34a');textY(g,44.8,ex,DOORH+10,'EXIT',10,'#ffffff')});
+  add(-1e9+1,()=>box(g,10,30,16,YE+6,0,WALL,'#5b6470',{top:'#7a8491'}));
+  add(1e9,()=>box(g,10,YE,XE+6,YE+6,0,14,'#5b6470'));add(1e9+1,()=>box(g,XE,30,XE+6,YE+6,0,14,'#5b6470'));
+  // corridor-facing half walls with doors, side walls
+  const rows=[0,1,2,3];
+  rows.forEach(rw=>{const rs=Object.values(ROOMS).filter(r=>r.row===rw),y=rw===0?ROWY[0]+ROWH[0]:ROWY[rw],gaps=rs.map(r=>[r.dx-20,r.dx+20]);
+    lineY(y,X0,XR,gaps);
+    if(rw>0&&rw<3)halfWallY(ROWY[rw]+ROWH[rw],X0,XR);
+    rs.forEach(r=>{const xr=r.x+r.w;if(xr<XR-1)wallX(xr,r.y,r.y+r.h)});
+    wallX(X0,ROWY[rw],ROWY[rw]+ROWH[rw]);wallX(XR,ROWY[rw],ROWY[rw]+ROWH[rw]);
   });
-  // door name plates
-  Object.values(ROOMS).forEach(r=>{const label=r.cabins?r.name.toUpperCase():r.name,y=r.row?BY:CY;add(y+1,()=>{const w=textW(g,label,10)+14,x1=r.dx-26,x0=x1-w;
-    planeY(g,y,x0,x1,68,82,r.row?shade(r.accent,-115)+'aa':shade(r.accent,-115));planeY(g,y,x0,x1,80,82,r.accent);textY(g,y,(x0+x1)/2,74,label,10,r.accent)})});
+  // cabins
+  Object.values(ROOMS).filter(r=>r.cabins).forEach(r=>{const n=r.cabins,cw=(r.w-12)/n,y0=r.row?r.fy:r.y,y1=r.row?r.y+r.h:r.fy;
+    for(let i=1;i<n;i++)wallX(r.x+6+i*cw,y0,y1);
+    lineY(r.fy,r.x+6,r.x+r.w-6,r.cabs.map(c=>[c.cdx-13,c.cdx+13]));
+    r.cabs.forEach((c,i)=>{const p=Object.values(P).find(q=>q.cabRef===c),lab=(r.labels?r.labels[i]+' · ':(i+1)+' · ')+(p?p.name.toUpperCase():'');if(r.row===0)add(-1e9+5,()=>{const w=textW(g,lab,12)+16;planeY(g,44.6,c.cx0+8,c.cx0+8+w,46,62,r.accent);textY(g,44.6,c.cx0+8+w/2,54,lab,12,'#ffffff')});else plate(r.fy,c.cx0+8,lab,12,r.accent,'#ffffff',12,28)});
+    r.cabs.forEach(c=>{if(r.row)plantAt(c.cx0+c.cw-24,r.y+r.h-34)});
+  });
+  // name plates above the doors
+  Object.values(ROOMS).forEach(r=>{const label=r.name.toUpperCase(),y=r.wallY,w=textW(g,label,12)+18;plate(y,r.dx-26-w,label,12,r.accent,'#ffffff',66,82)});
   // big titles
-  const h=ROOMS.hunt,a=ROOMS.adv;
-  add(-1e9+2,()=>{const t='AMAZON HUNTING DEPARTMENT',w=textW(g,t,20)+40,cx=h.x+h.w/2;box(g,cx-w/2,36,cx+w/2,40,WALL,WALL+34,'#140d05');planeY(g,40,cx-w/2,cx+w/2,WALL+2,WALL+32,'#1a1108',h.accent);textY(g,40,cx,WALL+17,t,20,h.accent,true)});
-  {const a=ROOMS.adv,t='AMAZON ADVANCE HUNTING DEPARTMENT',x0=a.x+6,x1=a.x+a.w-6;add(a.fy+0.6,()=>{planeY(g,a.fy,x0,x1,WALL-2,WALL+20,'#120e03',a.accent);textY(g,a.fy,(x0+x1)/2,WALL+9,t,16,a.accent,true)})}
-  // furniture per room
+  [['hunt','AMAZON HUNTING DEPARTMENT'],['listing','AMAZON LISTING OPTIMIZATION']].forEach(([k,t],n)=>{const h=ROOMS[k];add(-1e9+2+n,()=>{const w=textW(g,t,18)+40,cx=h.x+h.w/2;box(g,cx-w/2,36,cx+w/2,40,WALL,WALL+34,'#1f2937');planeY(g,40,cx-w/2,cx+w/2,WALL+2,WALL+32,'#111827',h.accent);textY(g,40,cx,WALL+17,t,18,h.accent,true)})});
+  [['adv','AMAZON ADVANCE HUNTING DEPARTMENT'],['ebay','EBAY PRODUCT HUNTING DEPARTMENT'],['clients','CLIENT HUNTING DEPARTMENT  ·  USA · UK · UAE · PAKISTAN'],['ppc','AMAZON PPC DEPARTMENT']].forEach(([k,t])=>{const a=ROOMS[k];if(!a)return;const x0=a.x+6,x1=a.x+a.w-6,y=a.fy;
+    add(y+0.6,()=>{planeY(g,y+3.3,x0,x1,WALL-2,WALL+20,'#111827',a.accent);textY(g,y+3.3,(x0+x1)/2,WALL+9,t,a.span>2?16:14,a.accent,true)})});
+  // planters along corridors and halls (renovated look)
+  [[XL+8,TY+120,40],[XR+8,TY+120,40],[XL+8,ROWY[3]+120,40],[XR+8,ROWY[3]+120,40]].forEach(([x,y,w])=>planter(x,y,w));
+  add(BY+150,()=>{HALLX.forEach(hx=>{box(g,hx-8,BY+140,hx+8,BY+152,0,40,'#e5e7eb');box(g,hx-6,BY+142,hx+6,BY+150,40,56,'#93c5fd')})});
+  // furniture
   const R0=ROOMS;
-  {const r=R0.manager;shelfAt(r.x+150,46,72);plantAt(r.x+12,52);plantAt(r.x+12,r.y+r.h-34);sofaAt(r.x+60,r.y+r.h-50,74,'#6b4a8a');tableAt(r.x+150,r.y+r.h-60,40,24,'#5a3d26')}
+  {const r=R0.manager;shelfAt(r.x+150,46,72);plantAt(r.x+12,52);plantAt(r.x+12,r.y+r.h-34);sofaAt(r.x+60,r.y+r.h-50,74,'#94a3b8');tableAt(r.x+150,r.y+r.h-60,40,24,'#e7e2d8')}
   {const r=R0.research;shelfAt(r.x+150,46,72);plantAt(r.x+214,r.y+r.h-34);boardStand(r.x+20,r.y+r.h-50,60)}
-  {const r=R0.hunt;boxesAt(r.x+24,r.y+r.h-60);boxesAt(r.x+60,r.y+r.h-44);boardStand(r.x+r.w-140,r.y+r.h-44,80,true);plantAt(r.x+r.w-30,r.y+r.h-34)}
-  {const r=R0.content;shelfAt(r.x+150,46,72);plantAt(r.x+12,52);plantAt(r.x+12,r.y+r.h-34);sofaAt(r.x+70,r.y+r.h-46,60,'#2f7a5a')}
+  {const r=R0.hunt;boxesAt(r.x+24,r.y+r.h-60);boxesAt(r.x+60,r.y+r.h-44);boardStand(r.x+r.w-140,r.y+r.h-44,80,true);plantAt(r.x+r.w-30,r.y+r.h-34);r.cabs.forEach(c=>boxesAt(c.cx0+c.cw-40,r.y+12))}
+  {const r=R0.content;shelfAt(r.x+150,46,72);plantAt(r.x+12,52);plantAt(r.x+12,r.y+r.h-34);sofaAt(r.x+70,r.y+r.h-46,60,'#86b7a0')}
   {const r=R0.marketing;plantAt(r.x+214,r.y+r.h-34);boardStand(r.x+20,r.y+r.h-50,70,true);shelfAt(r.x+150,46,72)}
+  {const r=R0.listing;plantAt(r.x+r.w-30,r.y+r.h-34);boardStand(r.x+30,r.y+r.h-50,90);r.cabs.forEach(c=>shelfAt(c.cx0+c.cw-50,46,40))}
   {const r=R0.review;cabinetAt(r.x+14,r.y+r.h-30);cabinetAt(r.x+42,r.y+r.h-30);plantAt(r.x+214,r.y+r.h-34);shelfAt(r.x+150,r.y+r.h-22,72)}
   {const r=R0.records;for(let i=0;i<6;i++)cabinetAt(r.x+14+i*30,r.y+r.h-30);plantAt(r.x+20,r.y+40)}
   {const r=R0.adv;plantAt(r.x+16,r.y+40);plantAt(r.x+r.w-30,r.y+40);boardStand(r.x+60,r.y+50,80,true)}
-  {const r=R0.pantry,x=r.x,y=r.y;add(y+86,()=>{box(g,x+8,y+20,x+36,y+152,0,30,'#7d8a9c',{top:'#cfd8e3'});box(g,x+12,y+40,x+30,y+58,30,52,'#2e2e36');box(g,x+15,y+62,x+27,y+70,30,36,'#e8e8e8');box(g,x+14,y+100,x+30,y+112,30,40,'#8fb4d6')});
-    add(y+192,()=>{box(g,x+8,y+170,x+36,y+214,0,62,'#d6dde6');planeX(g,x+36,y+176,y+178,30,46,'#7f8ea3')});
-    tableAt(x+130,y+98,50,28);tableAt(x+130,y+198,50,28);[[106,108],[186,108],[106,208],[186,208]].forEach(([a2,b2])=>stoolAt(x+a2,y+b2));plantAt(x+222,y+r.h-34)}
-  {const r=R0.meeting,x=r.x,y=r.y;add(y+163,()=>{box(g,x+120,y+156,x+130,y+168,0,22,'#2a2a30');box(g,x+50,y+140,x+200,y+186,22,27,'#4a3424')});
-    for(let i=0;i<5;i++){stoolAt(x+58+i*28,y+116);stoolAt(x+58+i*28,y+194)}
-    add(y+272,()=>{box(g,x+80,y+268,x+170,y+276,0,26,'#222');box(g,x+84,y+270,x+166,y+274,26,62,'#111a26');planeY(g,y+274,x+88,x+162,30,58,'#1d4e6b');textY(g,y+274,x+125,44,'MEETING',8,'#9fe6ff')});
-    plantAt(x+12,y+40);plantAt(x+222,y+r.h-34)}
+  {const r=R0.ppc;plantAt(r.x+16,r.y+40);boardStand(r.x+60,r.y+48,90,true);plantAt(r.x+r.w-30,r.y+40)}
+  {const r=R0.pantry,x=r.x,y=r.y;add(y+86,()=>{box(g,x+8,y+20,x+36,y+152,0,30,'#d1d5db',{top:'#f3f4f6'});box(g,x+12,y+36,x+30,y+54,30,52,'#374151');box(g,x+15,y+58,x+27,y+66,30,36,'#ffffff');box(g,x+13,y+86,x+31,y+104,30,33,'#111827');box(g,x+16,y+90,x+22,y+96,33,40,'#9ca3af');box(g,x+14,y+118,x+30,y+130,30,40,'#93c5fd')});
+    add(y+192,()=>{box(g,x+8,y+170,x+36,y+214,0,62,'#e5e7eb');planeX(g,x+36,y+176,y+178,30,46,'#9ca3af')});
+    tableAt(x+130,y+98,50,28,'#e7e2d8');tableAt(x+130,y+198,50,28,'#e7e2d8');[[106,108],[186,108],[106,208],[186,208]].forEach(([a2,b2])=>stoolAt(x+a2,y+b2));plantAt(x+222,y+r.h-34)}
+  {const r=R0.meeting,x=r.x,y=r.y;add(y+163,()=>{box(g,x+120,y+156,x+130,y+168,0,22,'#9ca3af');box(g,x+50,y+140,x+200,y+186,22,27,'#e7e2d8')});
+    for(let i=0;i<5;i++){stoolAt(x+58+i*28,y+116);stoolAt(x+58+i*28,y+194)}plantAt(x+12,y+40);plantAt(x+222,y+r.h-34)}
+  {const r=R0.ebay;plantAt(r.x+16,r.y+40);plantAt(r.x+r.w-30,r.y+40);boardStand(r.x+70,r.y+48,90,true);boxesAt(r.x+200,r.y+60)}
+  {const r=R0.ebaysrc;boxesAt(r.x+20,r.y+r.h-50);boxesAt(r.x+54,r.y+r.h-40);shelfAt(r.x+150,r.y+r.h-22,72);plantAt(r.x+20,r.y+40)}
+  {const r=R0.amzsrc;boxesAt(r.x+170,r.y+r.h-50);boxesAt(r.x+20,r.y+r.h-44);cabinetAt(r.x+200,r.y+40);plantAt(r.x+20,r.y+40)}
+  {const r=R0.clients;plantAt(r.x+16,r.y+40);plantAt(r.x+r.w-30,r.y+40);boardStand(r.x+120,r.y+46,110,true);boardStand(r.x+r.w-260,r.y+46,110)}
+  {const r=R0.training,x=r.x,y=r.y;boardStand(x+20,y+40,110);add(y+272,()=>{box(g,x+160,y+268,x+340,y+276,0,26,'#374151');box(g,x+164,y+270,x+336,y+274,26,70,'#111827');planeY(g,y+274,x+170,x+330,30,66,'#3b4fd8');textY(g,y+274,x+250,48,'TRAINING',10,'#ffffff')});plantAt(x+460,y+40);plantAt(x+460,y+r.h-34);plantAt(x+14,y+r.h-34)}
+  {const r=R0.newhires,x=r.x,y=r.y;plantAt(x+214,y+r.h-34);plantAt(x+16,y+r.h-34);add(y+r.h-20,()=>{planeY(g,y+r.h-20,x+60,x+190,40,58,'#0f766e');textY(g,y+r.h-20,x+125,49,'WELCOME!',10,'#ffffff')})}
+  {const r=R0.staff,x=r.x,y=r.y;add(y+204,()=>{box(g,x+20,y+198,x+228,y+212,0,14,'#9a7b55');box(g,x+20,y+210,x+228,y+214,0,26,'#8a6b45')});for(let i=0;i<4;i++)cabinetAt(x+30+i*30,y+36);add(y+60,()=>{box(g,x+200,y+44,x+218,y+60,0,40,'#e5e7eb');box(g,x+202,y+46,x+216,y+58,40,58,'#93c5fd')});plantAt(x+214,y+r.h-34)}
+  {const r=R0.lounge,x=r.x,y=r.y;
+    add(y+120,()=>{box(g,x+r.w/2-130,y+100,x+r.w/2+130,y+126,0,30,'#e7e2d8',{top:'#f5f3ee'});box(g,x+r.w/2-130,y+122,x+r.w/2+130,y+126,0,30,'#c08a3e')});
+    add(y+70,()=>{const cx=x+r.w/2;box(g,cx-150,y+66,cx+150,y+70,0,60,'#1f2937');planeY(g,y+70,cx-146,cx+146,8,56,'#111827','#c08a3e');textY(g,y+70,cx,38,'ecommwithtaha',26,'#f5c46b',true);textY(g,y+70,cx,18,'AI AGENT OFFICE',9,'#e5e7eb')});
+    sofaAt(x+60,y+200,90,'#94a3b8');sofaAt(x+r.w-160,y+200,90,'#94a3b8');tableAt(x+r.w/2-30,y+210,60,30,'#e7e2d8');
+    planter(x+20,y+r.h-30,120);planter(x+r.w-140,y+r.h-30,120);plantAt(x+20,y+40);plantAt(x+r.w-34,y+40)}
 }
 /* ---- floors (pre-rendered) ---- */
 const bgc=document.createElement('canvas');bgc.width=BGW;bgc.height=BGH;const b=bgc.getContext('2d');
 function buildBG(){
   b.setTransform(1,0,0,1,0,0);b.clearRect(0,0,BGW,BGH);
   b.setTransform(1,0,0,KY,OX,OY);sd=11;
-  b.fillStyle='#141c2a';b.fillRect(16,CY,1488,BY-CY);
-  for(let x=16;x<1504;x+=24){b.fillStyle=(x/24)%2<1?'#172031':'#151d2c';b.fillRect(x,CY,24,BY-CY)}
-  b.fillStyle='#1d2a44';b.fillRect(16,LANE-14,1488,28);b.fillStyle='#2a3b5e';b.fillRect(16,LANE-14,1488,2);b.fillRect(16,LANE+12,1488,2);
+  const corr=(x0,y0,w,h)=>{b.fillStyle='#e4e7eb';b.fillRect(x0,y0,w,h);b.fillStyle='#d5d9df';for(let x=x0;x<x0+w;x+=40)b.fillRect(x,y0,1,h);for(let y=y0;y<y0+h;y+=40)b.fillRect(x0,y,w,1)};
+  corr(XL,TY,XE-XL,YE-TY);
+  [0,1,2].forEach(i=>{const L=LANES[i];b.fillStyle='#cfd5dd';b.fillRect(XL,L-14,XE-XL,28)});
+  HALLX.forEach(hx=>{b.fillStyle='#cfd5dd';b.fillRect(hx-14,LANES[0],28,LANES[2]-LANES[0])});
   Object.values(ROOMS).forEach(r=>{
-    if(r.key==='pantry'){for(let yy=r.y;yy<r.y+r.h;yy+=20)for(let xx=r.x;xx<r.x+r.w;xx+=20){b.fillStyle=((xx-r.x)/20+(yy-r.y)/20)%2<1?'#e8dcc8':'#3b3228';b.fillRect(xx,yy,20,20)}}
-    else if(r.key==='meeting'){b.fillStyle='#2b3546';b.fillRect(r.x,r.y,r.w,r.h);for(let i=0;i<400;i++){b.fillStyle=`rgba(255,255,255,${rnd()*0.03})`;b.fillRect(r.x+rnd()*r.w,r.y+rnd()*r.h,2,2)}}
-    else{const base=r.floor[1];for(let yy=r.y;yy<r.y+r.h;yy+=10){let xx=r.x+((yy/10)%2)*30;b.fillStyle=base;b.fillRect(r.x,yy,r.w,10);
-      while(xx<r.x+r.w){const L=40+rnd()*50;b.fillStyle=shade(base,Math.round((rnd()-0.5)*14));b.fillRect(xx,yy,Math.min(L,r.x+r.w-xx)-1,9);xx+=L}}}
-    if(r.cabins){r.cabs.forEach(c=>{if(!c)return;const y0=r.row?r.fy:r.y,y1=r.row?r.y+r.h:r.fy;b.fillStyle=shade(r.accent,-120)+'66';b.fillRect(c.cx0+4,y0+2,c.cw-8,y1-y0-4)})}
+    if(r.type==='tile'){for(let yy=r.y;yy<r.y+r.h;yy+=20)for(let xx=r.x;xx<r.x+r.w;xx+=20){b.fillStyle=((xx-r.x)/20+(yy-r.y)/20)%2<1?'#f3f4f6':'#e5e7eb';b.fillRect(xx,yy,20,20)}}
+    else if(r.type==='meet'||r.type==='carpet'){const c=r.type==='meet'?['#aab8c8','#a3b2c3']:['#c3c8cf','#bcc2ca'];for(let yy=r.y;yy<r.y+r.h;yy+=31)for(let xx=r.x;xx<r.x+r.w;xx+=31){b.fillStyle=c[((xx-r.x)/31+(yy-r.y)/31)%2<1?0:1];b.fillRect(xx,yy,31,31)}}
+    else{const base='#d6b68a';for(let yy=r.y;yy<r.y+r.h;yy+=10){let xx=r.x+((yy/10)%2)*30;b.fillStyle=base;b.fillRect(r.x,yy,r.w,10);
+      while(xx<r.x+r.w){const L=40+rnd()*50;b.fillStyle=shade(base,Math.round((rnd()-0.5)*16));b.fillRect(xx,yy,Math.min(L,r.x+r.w-xx)-1,9);xx+=L}}}
+    if(r.cabins){const n=r.cabins,cw=(r.w-12)/n,y0=r.row?r.fy:r.y,y1=r.row?r.y+r.h:r.fy;for(let i=0;i<n;i++){const cx0=r.x+6+i*cw;b.fillStyle=r.accent+'1c';b.fillRect(cx0+4,y0+2,cw-8,y1-y0-4);
+      const rx=cx0+14,ry=r.row?y1-58:y0+34;b.fillStyle=r.accent+'40';b.fillRect(rx,ry,cw-28,38);b.fillStyle=r.accent+'26';b.fillRect(rx+5,ry+5,cw-38,28)}}
   });
-  [['manager',40,170,150,70,'#4a3560'],['research',40,180,120,60,'#203a55'],['content',40,180,140,60,'#1f4434'],['marketing',40,180,140,60,'#4a2443'],['review',40,40,140,60,'#2a2f55']].forEach(([k,ox,oy,w,h2,c])=>{const r=ROOMS[k];b.fillStyle=c;b.fillRect(r.x+ox,r.y+oy,w,h2);b.fillStyle=shade(c,14);b.fillRect(r.x+ox+5,r.y+oy+5,w-10,h2-10);b.fillStyle=c;b.fillRect(r.x+ox+10,r.y+oy+10,w-20,h2-20)});
-  const glow=(x,y,rad,col)=>{const gr=b.createRadialGradient(x,y,0,x,y,rad);gr.addColorStop(0,col);gr.addColorStop(1,'rgba(0,0,0,0)');b.fillStyle=gr;b.fillRect(x-rad,y-rad,rad*2,rad*2)};
-  Object.values(ROOMS).forEach(r=>glow(r.x+r.w/2,r.y+r.h/2,r.w*0.55,'rgba(255,214,150,0.10)'));
-  CABS.forEach(c=>glow(c.sx,c.seat.y+10,70,'rgba(255,220,160,0.12)'));
-  for(let x=60;x<1504;x+=120)glow(x,LANE,60,'rgba(150,200,255,0.06)');
+  [['manager',40,170,150,70],['research',40,180,120,60],['content',40,180,140,60],['marketing',40,180,140,60],['review',40,40,140,60],['training',140,110,300,40],['newhires',40,220,160,50],['lounge',300,150,392,110]].forEach(([k,ox,oy,w,h2])=>{const r=ROOMS[k];if(!r)return;b.fillStyle=r.accent+'55';b.fillRect(r.x+ox,r.y+oy,w,h2);b.fillStyle=r.accent+'22';b.fillRect(r.x+ox+6,r.y+oy+6,w-12,h2-12)});
+  const glow=(x,y,rad,col)=>{const gr=b.createRadialGradient(x,y,0,x,y,rad);gr.addColorStop(0,col);gr.addColorStop(1,'rgba(255,255,255,0)');b.fillStyle=gr;b.fillRect(x-rad,y-rad,rad*2,rad*2)};
+  CABS.forEach(c=>glow(c.sx,c.seat.y+10,70,'rgba(255,255,255,0.22)'));
   b.setTransform(1,0,0,1,0,0);
   buildStatic();
 }
 /* ---- dynamic pieces ---- */
-function drawChair(c){const x=c.seat.x,y=c.seat.y;box(g,x-11,y-14,x+11,y-10,8,40,'#2b3445');box(g,x-11,y-10,x+11,y+3,12,17,'#323d52');box(g,x-2,y-6,x+2,y-2,0,12,'#1b2230')}
+function drawChair(c){if(c.noDesk)return;const x=c.seat.x,y=c.seat.y;box(g,x-11,y-14,x+11,y-10,8,40,'#2b2d33');box(g,x-11,y-10,x+11,y+3,12,17,'#3a3d45');box(g,x-2,y-6,x+2,y-2,0,12,'#1f2125')}
 function drawDesk(c,p,t){
-  const r=ROOMS[c.room],big=c.room==='manager',w=big?54:40,x=c.seat.x,y=c.seat.y;
-  box(g,x-w+2,y+8,x-w+6,y+22,0,22,'#3a2a1c');box(g,x+w-6,y+8,x+w-2,y+22,0,22,'#3a2a1c');box(g,x-w+6,y+20,x+w-6,y+22,6,22,'#5a4029');
-  box(g,x-w,y+6,x+w,y+24,22,26,big?'#6b4a2f':'#9a7451');
+  if(c.noDesk)return;const r=ROOMS[c.room],big=c.room==='manager',w=big?54:40,x=c.seat.x,y=c.seat.y;
+  box(g,x-w+2,y+8,x-w+6,y+22,0,22,'#9ca3af');box(g,x+w-6,y+8,x+w-2,y+22,0,22,'#9ca3af');box(g,x-w+6,y+20,x+w-6,y+22,6,22,'#e5e7eb');
+  box(g,x-w,y+6,x+w,y+24,22,26,big?'#8b5e3c':'#f2f1ec',big?{}:{top:'#fbfbf8',south:'#e2e0da'});
   box(g,x-12,y+9,x+8,y+13,26,27,'#22262f');box(g,x+w-14,y+16,x+w-6,y+21,26,32,'#e8e8e8');box(g,x-w+6,y+12,x-w+16,y+20,26,27,'#f4f4f4');
   box(g,x+26,y+11,x+30,y+14,26,32,'#1c222d');box(g,x+16,y+9,x+40,y+11,32,52,'#1c222d');
+  if(r.cabins){box(g,x-w+8,y+10,x-w+11,y+13,26,46,'#2b2b2b');box(g,x-w+4,y+8,x-w+16,y+16,46,52,r.accent);const [lx,ly]=pr(x-w+10,y+12,40);const lg=g.createRadialGradient(lx,ly,0,lx,ly,26);lg.addColorStop(0,'rgba(255,230,170,0.35)');lg.addColorStop(1,'rgba(255,230,170,0)');g.fillStyle=lg;g.fillRect(lx-26,ly-26,52,52)}
   if(p.typing){const [mx,my]=pr(x+28,y+9,42);const gr=g.createRadialGradient(mx,my,0,mx,my,34);gr.addColorStop(0,r.accent+'88');gr.addColorStop(1,r.accent+'00');g.fillStyle=gr;g.fillRect(mx-34,my-34,68,68);
     planeY(g,y+9,x+17,x+39,33,51,(Math.floor(t/300)%2?shade(r.accent,-30):r.accent)+'cc')}
 }
 function drawDoor(d){
-  const s=d.row?1:-1,w=d.half*2,th=d.open*1.45,hx=d.x-d.half,hy=d.y,ex=hx+w*Math.cos(th),ey=hy+s*w*Math.sin(th);
+  const s2=d.row?1:-1,w=d.half*2,th=d.open*1.45,hx=d.x-d.half,hy=d.y,ex=hx+w*Math.cos(th),ey=hy+s2*w*Math.sin(th);
   const P3=(u,z)=>pr(hx+(ex-hx)*u,hy+(ey-hy)*u,z);
-  if(d.cab){poly(g,[P3(0,0),P3(1,0),P3(1,DOORH),P3(0,DOORH)],'rgba(200,230,255,0.22)',d.accent,1.5);poly(g,[P3(0.85,30),P3(0.92,30),P3(0.92,36),P3(0.85,36)],'#ddd')}
-  else{poly(g,[P3(0,0),P3(1,0),P3(1,DOORH),P3(0,DOORH)],'#7a4e2d','#3a2414',1);poly(g,[P3(0.18,30),P3(0.82,30),P3(0.82,58),P3(0.18,58)],'rgba(170,215,255,0.35)');
-    poly(g,[P3(0.86,30),P3(0.93,30),P3(0.93,34),P3(0.86,34)],'#e9c46a')}
+  if(d.cab){poly(g,[P3(0,0),P3(1,0),P3(1,DOORH),P3(0,DOORH)],'rgba(200,230,250,0.30)',d.accent,1.5);poly(g,[P3(0.84,30),P3(0.92,30),P3(0.92,36),P3(0.84,36)],'#374151')}
+  else{poly(g,[P3(0,0),P3(1,0),P3(1,DOORH),P3(0,DOORH)],'#f8fafc','#94a3b8',1.2);poly(g,[P3(0.08,0),P3(0.16,0),P3(0.16,DOORH),P3(0.08,DOORH)],d.accent);
+    poly(g,[P3(0.3,34),P3(0.75,34),P3(0.75,58),P3(0.3,58)],'rgba(170,210,240,0.45)');poly(g,[P3(0.84,30),P3(0.92,30),P3(0.92,34),P3(0.84,34)],'#374151')}
 }
 function drawPerson(p,t,ax,ay){
 
@@ -539,7 +616,9 @@ function drawPerson(p,t,ax,ay){
     }
     Q(3+ph,6,2,4,shD);Q(3+ph,10,2,1,sk);
   }
-  if(p.carry){const cx=ax+(flip?-19:9);g.fillStyle=p.carry==='gold'?'#ffd166':'#f4f4f4';g.fillRect(cx,ay-22,10,13);g.fillStyle='#9aa8b8';g.fillRect(cx+2,ay-19,6,1);g.fillRect(cx+2,ay-16,6,1);g.fillRect(cx+2,ay-13,4,1)}
+  if(p.tool==='mop'){const hx=ax+(flip?-11:11);g.strokeStyle='#8b6b3e';g.lineWidth=2;g.beginPath();g.moveTo(hx,ay-26);g.lineTo(hx+(flip?-7:7),ay-1);g.stroke();g.fillStyle='#cbd5e1';g.fillRect(hx+(flip?-13:3),ay-4,11,4)}
+  if(p.carry==='cup'){const cx=ax+(flip?-17:9);g.fillStyle='#ffffff';g.fillRect(cx,ay-20,8,9);g.fillStyle=p.cup==='paani'?'#7dd3fc':'#7a4a24';g.fillRect(cx+1,ay-20,6,2);g.fillStyle='rgba(255,255,255,0.8)';g.fillRect(cx+2,ay-26,1,4);g.fillRect(cx+5,ay-27,1,5)}
+  else if(p.carry){const cx=ax+(flip?-19:9);g.fillStyle=p.carry==='gold'?'#ffd166':'#f4f4f4';g.fillRect(cx,ay-22,10,13);g.fillStyle='#9aa8b8';g.fillRect(cx+2,ay-19,6,1);g.fillRect(cx+2,ay-16,6,1);g.fillRect(cx+2,ay-13,4,1)}
 }
 function drawBubbleS(x,y,text){
   const dp=V.dpr;g.font=`${11*dp}px Chakra Petch, sans-serif`;let s=text;while(g.measureText(s).width>200*dp)s=s.slice(0,-2);if(s!==text)s+='…';
@@ -548,12 +627,12 @@ function drawBubbleS(x,y,text){
   g.fillStyle='#0b1626';g.textBaseline='middle';g.textAlign='left';g.fillText(s,bx+6*dp,by+9*dp);
 }
 function drawTagS(p,x,y){
-  const dp=V.dpr;g.font=`${9*dp}px Silkscreen, monospace`;const tw=g.measureText(p.name).width+8*dp;
-  g.fillStyle='rgba(0,0,0,0.65)';g.fillRect(x-tw/2,y,tw,12*dp);g.fillStyle=selected===p.key?'#46e6ff':p.shirt;g.textAlign='center';g.textBaseline='top';g.fillText(p.name,x,y+2*dp);g.textAlign='left';
+  const dp=V.dpr,lab=tagOf(p);g.font=`${9*dp}px Silkscreen, monospace`;const tw=g.measureText(lab).width+8*dp;
+  g.fillStyle='rgba(0,0,0,0.65)';g.fillRect(x-tw/2,y,tw,12*dp);g.fillStyle=selected===p.key?'#46e6ff':p.shirt;g.textAlign='center';g.textBaseline='top';g.fillText(lab,x,y+2*dp);g.textAlign='left';
 }
 const toScreen=(x,y,z=0)=>{const [bx,by]=pr(x,y,z);return[bx*V.z+V.px,by*V.z+V.py]};
 function drawScene(t){
-  g.setTransform(1,0,0,1,0,0);const gr=g.createLinearGradient(0,0,0,cv.height);gr.addColorStop(0,'#0c1424');gr.addColorStop(1,'#04070d');g.fillStyle=gr;g.fillRect(0,0,cv.width,cv.height);
+  g.setTransform(1,0,0,1,0,0);const gr=g.createLinearGradient(0,0,0,cv.height);gr.addColorStop(0,'#e8ecf1');gr.addColorStop(1,'#cfd6df');g.fillStyle=gr;g.fillRect(0,0,cv.width,cv.height);
   setT(1,0,0,1,0,0);g.imageSmoothingEnabled=true;g.drawImage(bgc,0,0);
   const items=STATIC.slice();
   DOORS.forEach(d=>{const near=Object.values(P).some(p=>Math.abs(p.x-d.x)<d.half+10&&Math.abs(p.y-d.y)<34);d.open+=((near?1:0)-d.open)*0.1;items.push({k:d.y+(d.row?1:-1)*d.half*d.open-1,f:()=>drawDoor(d)})});
@@ -561,11 +640,12 @@ function drawScene(t){
   items.sort((a,b2)=>a.k-b2.k);setT(1,0,0,1,0,0);g.imageSmoothingEnabled=false;
   for(const it of items)it.f();
   g.setTransform(1,0,0,1,0,0);
-  const vg=g.createRadialGradient(cv.width/2,cv.height/2,cv.height*0.45,cv.width/2,cv.height/2,cv.width*0.75);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.45)');g.fillStyle=vg;g.fillRect(0,0,cv.width,cv.height);
+  const vg=g.createRadialGradient(cv.width/2,cv.height/2,cv.height*0.45,cv.width/2,cv.height/2,cv.width*0.75);vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.10)');g.fillStyle=vg;g.fillRect(0,0,cv.width,cv.height);
   Object.values(P).forEach(p=>{const [sx,sy]=toScreen(p.x,p.y);drawTagS(p,sx,sy+(p.seated?14:6)*V.z);
     const hy=sy-54*V.z;if(p.bubble&&t<p.bubble.until)drawBubbleS(sx,hy,p.bubble.text);else if(p.typing)drawBubbleS(sx,hy,(p.workText||'Working')+'.'.repeat(1+Math.floor(t/350)%3))});
 }
 /* ---- camera: fit, zoom, pan ---- */
+cv.style.aspectRatio=BGW+'/'+BGH;
 function fitView(){V.z=cv.width/BGW;V.px=0;V.py=0}
 function resizeCanvas(){V.dpr=Math.min(2,window.devicePixelRatio||1);const w=cv.clientWidth;if(!w)return;cv.width=Math.round(w*V.dpr);cv.height=Math.round(w*V.dpr*BGH/BGW);fitView()}
 new ResizeObserver(resizeCanvas).observe(cv);
@@ -599,14 +679,15 @@ function drawWires(){
 addEventListener('resize',drawWires);
 
 /* ================= UI ================= */
-const deptLabel=k=>k==='amazon'?'Amazon Hunting → Advance Hunting':ROOMS[k].name;
-const deptPerson=k=>k==='amazon'?P.hunt1:P[k];
+const DEPT_LABEL={amazon:'Amazon Hunting → Advance → Sourcing',ebay:'eBay Hunting → eBay Sourcing → eBay SEO',ppc:'Amazon PPC → Advance test',listing:'Amazon Listing Optimization',clients:'Client Hunting (USA · UK · UAE · Pakistan)'};
+const deptLabel=k=>DEPT_LABEL[k]||(ROOMS[k]?ROOMS[k].name:k);
+const deptPerson=k=>({amazon:P.hunt1,ebay:P.ebay1,ppc:P.ppc,listing:P.listing,clients:P.cl1})[k]||P[k];
 function statusOf(p){if(p.typing)return['working','Working'];if(p.path.length)return['walking','Walking'];if(p.bubble&&p.bubble.text.startsWith('Waiting')&&performance.now()<p.bubble.until)return['','Waiting'];return['',p.seated?'At desk':'Around']}
 function renderRoster(){$('roster').innerHTML=Object.values(P).map(p=>{const[c,s]=statusOf(p);return `<div class="chip ${c} ${selected===p.key?'sel':''}" data-k="${p.key}" title="${esc(ROOMS[p.room===p.cabRef.room?p.cabRef.room:p.cabRef.room].name+': '+p.role)}"><i style="background:${p.shirt}"></i>${esc(p.name)} <small>${s}</small></div>`}).join('')}
 $('roster').onclick=e=>{const c=e.target.closest('.chip');if(c)pick(c.dataset.k)};
-function pick(k){if(k==='records')return;const v=HUNTERS.concat(ANALYSTS).includes(k)?'amazon':k;selected=k;$('who').value=v;renderRoster()}
+function pick(k){if(k==='records'||k==='trainer'||/^tr\d+$/.test(k)||/^ob\d$/.test(k))return;const grp={listing2:'listing',ppc2:'ppc',cl1:'clients',cl2:'clients',cl3:'clients',cl4:'clients',hunt1:'amazon',hunt2:'amazon',hunt3:'amazon',adv1:'amazon',adv2:'amazon',adv3:'amazon',amzsrc:'amazon',ebay1:'ebay',ebay2:'ebay',ebay3:'ebay',ebay4:'ebay',ebaysrc:'ebay'};selected=k;$('who').value=grp[k]||k;renderRoster()}
 function renderWho(){const v=$('who').value||'manager';
-  $('who').innerHTML=`<option value="manager">${esc(P.manager.name)} – Manager (shares the work)</option><option value="amazon">Amazon departments (hunt → advance test → final)</option>`+['research','content','marketing','review'].map(k=>`<option value="${k}">${esc(P[k].name)} – ${ROOMS[k].name} only</option>`).join('');$('who').value=v}
+  $('who').innerHTML=`<option value="manager">${esc(P.manager.name)} – Manager (shares the work)</option><option value="amazon">Amazon: hunt → advance test → sourcing</option><option value="ebay">eBay: dropship hunt → sourcing → SEO listing</option><option value="ppc">Amazon PPC (give an ASIN) → advance test</option><option value="listing">Amazon listing optimization</option><option value="clients">Client hunting (USA · UK · UAE · Pakistan)</option>`+['research','content','marketing','review'].map(k=>`<option value="${k}">${esc(P[k].name)} – ${ROOMS[k].name} only</option>`).join('');$('who').value=v}
 $('who').onchange=()=>{selected=$('who').value==='amazon'?'hunt1':$('who').value;renderRoster()};
 
 function log(name,text,color,err){if(document.hidden)awayLogs++;const L=$('log');L.querySelector('.empty')?.remove();const d=document.createElement('div');d.className='msg'+(err?' err':'');if(color)d.style.setProperty('--c',color);d.innerHTML=`<b>${esc(name)}</b>${esc(text)}`;L.appendChild(d);L.scrollTop=L.scrollHeight}
@@ -619,7 +700,12 @@ const COLS={
   hunted:[['date','Date'],['hunter','Hunter'],['market','Market'],['name','Product'],['keyword','Keyword'],['price','Price'],['monthlySales','Sales / month'],['topReviews','Top reviews'],['competition','Competition'],['unitCost','Unit cost'],['margin','Est. profit'],['weight','Weight'],['score','Score'],['whyGood','Why good'],['amazonLink','Amazon']],
   findings:[['date','Date'],['task','Boss task'],['dept','Department'],['agent','Agent'],['title','Title'],['details','Details'],['link','Link']]
 };
-const SHEET_NAMES={final:'Final products',advanced:'Advanced test',hunted:'Hunted',findings:'Other findings'};
+COLS.sourcing=[['date','Date'],['name','Product'],['supplierType','Supplier type'],['searchTerms','Search terms'],['filters','Must-have filters'],['targetPrice','Target unit price'],['moq','MOQ'],['sampleCost','Sample cost'],['certifications','Certifications'],['questions','Ask the supplier'],['redFlags','Red flags'],['alibabaLink','Alibaba search']];
+COLS.ebay=[['date','Date'],['hunter','Hunter'],['name','Product'],['soldPrice','Sold price'],['sellThrough','Sell-through'],['supplierPlatform','Supplier'],['supplierCost','Supplier cost'],['shippingDays','Shipping'],['ebayFees','eBay fees'],['profit','Profit'],['verdict','Verdict'],['title','eBay title (SEO)'],['specifics','Item specifics'],['images','Image plan'],['description','Description'],['soldLink','eBay sold search'],['supplierLink','Supplier search']];
+COLS.ppc=[['date','Date'],['asin','ASIN'],['product','Product'],['type','Type'],['item','Keyword / campaign'],['match','Match'],['priority','Priority'],['bid','Bid / budget'],['details','Details']];
+COLS.listing=[['date','Date'],['product','Product'],['title','Title'],['bullets','Bullets'],['description','Description'],['backend','Backend keywords'],['images','Image plan'],['aplus','A+ content']];
+COLS.clients=[['date','Date'],['country','Country'],['agent','Agent'],['segment','Lead target'],['platform','Platform'],['searchQuery','Search'],['whyGoodFit','Why a fit'],['outreach','Outreach message'],['questions','Questions'],['link','Open search']];
+const SHEET_NAMES={final:'Amazon final',sourcing:'Amazon sourcing',advanced:'Advanced test',hunted:'Hunted',ebay:'eBay listings',ppc:'PPC plans',listing:'Amazon listings',clients:'Client leads',findings:'Other findings'};
 let sheetTab='final';
 document.querySelectorAll('.stabs button').forEach(bt=>bt.onclick=()=>{sheetTab=bt.dataset.s;document.querySelectorAll('.stabs button').forEach(x=>x.classList.toggle('act',x===bt));renderSheet()});
 function renderSheet(){
@@ -635,7 +721,7 @@ const links=(mk,kw)=>{const d=MARKETS[mk]?.d||'amazon.com',k=encodeURIComponent(
 function addRows(tab,rows){S.sheet[tab].push(...rows);if(S.sheet[tab].length>1500)S.sheet[tab]=S.sheet[tab].slice(-1500);save();if(sheetTab===tab)renderSheet()}
 $('xlsBtn').onclick=()=>{
   const toRows=k=>S.sheet[k].map(r=>Object.fromEntries(COLS[k].map(([a,b])=>[b,r[a]??''])));
-  if(window.XLSX){const wb=XLSX.utils.book_new();['final','advanced','hunted','findings'].forEach(k=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(toRows(k).length?toRows(k):[{}]),SHEET_NAMES[k]));XLSX.writeFile(wb,'agent-office-records.xlsx');return}
+  if(window.XLSX){const wb=XLSX.utils.book_new();Object.keys(SHEET_NAMES).forEach(k=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(toRows(k).length?toRows(k):[{}]),SHEET_NAMES[k]));XLSX.writeFile(wb,'agent-office-records.xlsx');return}
   const cols=COLS[sheetTab],csv=[cols.map(c=>c[1]).join(',')].concat(S.sheet[sheetTab].map(r=>cols.map(([k])=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download=`agent-office-${sheetTab}.csv`;a.click();
 };
@@ -645,7 +731,7 @@ $('clrSheet').onclick=()=>{if(confirm('Clear all rows in every sheet tab?')){S.s
 let onSave=null;
 function openEditor(k){
   const B=$('dlgBody');$('dlgSave').textContent='Save';
-  $('dlgTitle').textContent={memory:'Memory',skills:'Skills',soul:'Soul',settings:'Settings',team:'Team',amazon:'Amazon criteria'}[k];
+  $('dlgTitle').textContent={memory:'Memory',skills:'Skills',soul:'Soul',settings:'Settings',team:'Team',amazon:'Amazon criteria',academy:'Training Academy'}[k];onSave=null;
   if(k==='memory'){B.innerHTML=`<p class="note">Facts every agent always knows: your business, products, audience, budget, language.</p><textarea id="f" rows="10">${esc(S.memory)}</textarea><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="am" style="width:auto" ${S.autoMemory?'checked':''}> Add a short note after each finished task</label>`;onSave=()=>{S.memory=$('f').value;S.autoMemory=$('am').checked}}
   if(k==='skills'){B.innerHTML=`<p class="note">What the team is good at. One skill per line.</p><textarea id="f" rows="10">${esc(S.skills)}</textarea>`;onSave=()=>{S.skills=$('f').value}}
   if(k==='soul'){B.innerHTML=`<p class="note">Personality and rules everyone follows.</p><textarea id="f" rows="8">${esc(S.soul)}</textarea>`;onSave=()=>{S.soul=$('f').value}}
@@ -674,24 +760,30 @@ function openEditor(k){
     $('dlgSave').textContent='Save & start hunting';
     onSave=()=>{S.criteria={market:$('cm').value,category:$('cc').value,priceMin:+$('cp1').value,priceMax:+$('cp2').value,maxReviews:+$('cr').value,minSales:+$('cs').value,maxWeight:$('cw').value,budget:$('cb').value,perHunter:+$('ph').value||4,finalCount:+$('fc').value||5,minMargin:+$('mm').value||25,notes:$('co').value};
       setTimeout(()=>runTask(`Find Amazon ${S.criteria.market} private label products using my saved criteria`,'amazon',curMode),60)}}
+  if(k==='academy'){const A=S.academy,depts=['amazon','ebay','ppc','listing','research','content','marketing','review'];
+    B.innerHTML=`<p class="note">${esc(P.trainer.name)} trains new agents. Talent grows over time and after every task. Hire the talented ones (85%+ is best) into a team. New Hires Bay: ${2-A.hires.length} free desk(s).</p>`+
+      A.trainees.map(t=>`<div class="acad"><b>${esc(t.name)}</b><div class="tal"><i style="width:${Math.round(t.talent)}%"></i></div><select id="hd_${t.id}" aria-label="Department">${depts.map(d=>`<option value="${d}">${esc(deptLabel(d))}</option>`).join('')}</select><button class="btn sm" data-hire="${t.id}">Hire · ${Math.round(t.talent)}%</button></div>`).join('')+
+      (A.hires.length?`<p class="note"><b>Hired:</b> ${A.hires.map(h=>esc(h.name)+' → '+esc(deptLabel(h.dept))).join(', ')}</p>`:'');
+    B.querySelectorAll('[data-hire]').forEach(bt=>bt.onclick=()=>{const id=+bt.dataset.hire,dep=$('hd_'+id).value;$('dlg').close();hireTrainee(id,dep)});
+    $('dlgSave').textContent='Close'}
   $('dlg').showModal();
 }
 document.querySelectorAll('.node').forEach(n=>n.onclick=()=>openEditor(n.dataset.k));
-$('teamBtn').onclick=()=>openEditor('team');$('amzBtn').onclick=()=>openEditor('amazon');
+$('teamBtn').onclick=()=>openEditor('team');$('acadBtn').onclick=()=>openEditor('academy');$('amzBtn').onclick=()=>openEditor('amazon');
 $('dlgCancel').onclick=()=>$('dlg').close();
 $('dlgSave').onclick=()=>{onSave&&onSave();save();$('dlg').close()};
 
 /* ================= AI ================= */
-async function askAI(system,user){
+async function askAI(system,user,temp){
   const st=S.settings,messages=[{role:'system',content:system},{role:'user',content:user}];
   const pre=PRESETS[st.provider];if(!st.base&&pre&&pre.base)st.base=pre.base;if(!st.model&&pre)st.model=pre.model;
   if(pre&&pre.key&&!st.key)throw new Error('No API key yet. Open [ Settings ] and paste your key.');
-  try{return await askAI2(st,messages)}catch(e){if(/Failed to fetch|NetworkError|Load failed/i.test(e.message))e.message+=` (tried: ${st.base})`;throw e}
+  try{return await askAI2(st,messages,temp)}catch(e){if(/Failed to fetch|NetworkError|Load failed/i.test(e.message))e.message+=` (tried: ${st.base})`;throw e}
 }
-async function askAI2(st,messages){
-  if(st.provider==='ollama'){const r=await fetch(st.base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:st.model,messages,stream:false})});
+async function askAI2(st,messages,temp){
+  if(st.provider==='ollama'){const r=await fetch(st.base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:st.model,messages,stream:false,options:{temperature:temp??0.6}})});
     if(!r.ok)throw new Error('Ollama error '+r.status+': '+(await r.text()).slice(0,200));return (await r.json()).message.content}
-  const r=await fetch(st.base+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+st.key},body:JSON.stringify({model:st.model,messages,temperature:0.6})});
+  const r=await fetch(st.base+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+st.key},body:JSON.stringify({model:st.model,messages,temperature:temp??0.6})});
   if(!r.ok)throw new Error('AI error '+r.status+': '+(await r.text()).slice(0,240));
   return (await r.json()).choices?.[0]?.message?.content||'';
 }
@@ -709,10 +801,12 @@ const critText=()=>{const c=S.criteria;return `- Marketplace: Amazon ${c.market}
 
 async function huntCall(h,bossTask,i){
   const c=S.criteria;
-  if(isDemo()){await sleep(3000+i*900);const L=[['Silicone stove gap cover','Bamboo drawer organizer','Under-sink shelf','Magnetic spice rack','Fridge organizer bins'],['Collapsible pet water bowl','Dog poop bag holder','Resistance band set','Yoga mat strap','Cooling towel'],['Desk cable box','Monitor riser','Jewelry travel case','Baby nail trimmer','Passport wallet']][i];
-    return{market:c.market,summary:`(demo) ${h.name} found ${c.perHunter} products.`,products:L.slice(0,c.perHunter).map((n,j)=>({name:n,keyword:n.toLowerCase(),price:'$'+(19+j*4)+'.99',monthlySales:'400–900',topReviews:'80–250',competition:j%2?'Medium':'Low',unitCost:'$'+(3+j).toFixed(2),margin:'$9 (38%)',weight:'0.5 lb',whyGood:'Steady demand, weak listings.',score:9-j}))}}
-  const raw=await askAI(sysFor(h)+AMZ_EXPERT,`Boss's request: "${bossTask}"\n\nSeller criteria:\n${critText()}\nIf the boss's words give different criteria, follow the boss.\n\nYou are hunter ${i+1} of 3. Search ONLY in your own focus area (from your job above) so you do not repeat the other hunters. Find ${c.perHunter} private label product ideas that fit.\nReply with ONLY JSON:\n{"market":"US","summary":"one sentence","products":[{"name":"","keyword":"main Amazon search keyword in English","price":"","monthlySales":"estimated range","topReviews":"","competition":"Low|Medium|High","unitCost":"est. landed cost","margin":"est. profit per unit and %","weight":"","whyGood":"","score":8}]}\n"market" must be one of ${Object.keys(MARKETS).join(', ')}.`);
+  const seen=recentNames('hunted');
+  if(isDemo()){await sleep(3000+i*900);const L=freshPick(DEMO_AMZ[i],seen,c.perHunter);
+    return{market:c.market,summary:`(demo) ${h.name} found ${L.length} new products.`,products:L.map((n,j)=>({name:n,keyword:n.toLowerCase(),price:'$'+(19+j*4)+'.99',monthlySales:'400–900',topReviews:'80–250',competition:j%2?'Medium':'Low',unitCost:'$'+(3+j).toFixed(2),margin:'$9 (38%)',weight:'0.5 lb',whyGood:'Steady demand, weak listings.',score:9-j}))}}
+  const raw=await askAI(sysFor(h)+AMZ_EXPERT,`Boss's request: "${bossTask}"\n\nSeller criteria:\n${critText()}\nIf the boss's words give different criteria, follow the boss.\n\nYou are hunter ${i+1} of 3. Search ONLY in your own focus area (from your job above) so you do not repeat the other hunters. Today's fresh angle: ${pickAngles()}.\nThese products were ALREADY found before. Do NOT suggest any of them or close variants:\n${seen.slice(0,80).join('; ')||'(none yet)'}\nFind ${c.perHunter} NEW, less obvious private label product ideas that fit.\nReply with ONLY JSON:\n{"market":"US","summary":"one sentence","products":[{"name":"","keyword":"main Amazon search keyword in English","price":"","monthlySales":"estimated range","topReviews":"","competition":"Low|Medium|High","unitCost":"est. landed cost","margin":"est. profit per unit and %","weight":"","whyGood":"","score":8}]}\n"market" must be one of ${Object.keys(MARKETS).join(', ')}.`,0.95);
   const j=parseJSON(raw);if(!j||!Array.isArray(j.products))throw new Error('Did not get a product list from the AI. Try again or use a bigger model.');
+  j.products=j.products.filter(x=>!seen.some(n=>n.toLowerCase()===String(x.name||'').toLowerCase()));
   if(!MARKETS[j.market])j.market=c.market;return j;
 }
 async function advCall(a,bossTask,file,hunter){
@@ -729,12 +823,17 @@ async function finalCall(lead,bossTask,pool){
   const j=parseJSON(raw);if(!j||!Array.isArray(j.products))throw new Error('Did not get the final list from the AI.');return j;
 }
 async function managerPlan(task){
-  if(isDemo()){await sleep(1800);const amz=/amazon|private|product/i.test(task);
-    return amz?{plan:'Amazon departments hunt and test products, Zara plans marketing for the winners.',assignments:[{dept:'amazon',task,needs:[]},{dept:'marketing',task:'Make launch and ad ideas for the final products.',needs:['amazon']}]}
-      :{plan:'Ali researches, Sara writes, Hamza reviews.',assignments:[{dept:'research',task:'Research: '+task,needs:[]},{dept:'content',task:'Write the content for: '+task,needs:['research']},{dept:'review',task:'Check and polish the final work.',needs:['content']}]}}
-  const list=[['research',P.research],['amazon',null],['content',P.content],['marketing',P.marketing],['review',P.review]].map(([k,p])=>k==='amazon'?`- amazon: the Amazon Hunting Department (${HUNTERS.map(h=>P[h].name).join(', ')}) finds products, then the Amazon Advance Hunting Department (${ANALYSTS.map(h=>P[h].name).join(', ')}) tests them deeply and makes a final list.`:`- ${k}: ${p.name}, ${ROOMS[k].name}. ${p.role}`).join('\n');
-  const raw=await askAI(sysFor(P.manager),`The boss gave you this task:\n"${task}"\n\nYour departments:\n${list}\n\nSplit the task into assignments for only the departments really needed (usually 1 to 4). Any Amazon product finding goes to "amazon". Use "needs" when a department must wait for another's work (only departments listed earlier in your answer).\nReply with ONLY JSON:\n{"plan":"one short sentence","assignments":[{"dept":"research","task":"...","needs":[]}]}`);
-  const j=parseJSON(raw)||{},ok=['research','amazon','content','marketing','review'],seen=new Set();
+  if(isDemo()){await sleep(1800);const t=task.toLowerCase(),as=[];
+    if(/ebay/.test(t))as.push({dept:'ebay',task,needs:[]});
+    if(/ppc|asin|\bb0[a-z0-9]{8}\b|keyword/.test(t))as.push({dept:'ppc',task,needs:[]});
+    if(/listing|bullet/.test(t)&&!/ebay/.test(t))as.push({dept:'listing',task,needs:[]});
+    if(/client|lead|customer|grahak|کلائنٹ|क्लाइंट/.test(t))as.push({dept:'clients',task,needs:[]});
+    if(/amazon|private|product/.test(t)&&!as.length)as.push({dept:'amazon',task,needs:[]},{dept:'marketing',task:'Make launch and ad ideas for the final products.',needs:['amazon']});
+    if(!as.length)as.push({dept:'research',task:'Research: '+task,needs:[]},{dept:'content',task:'Write the content for: '+task,needs:['research']},{dept:'review',task:'Check and polish the final work.',needs:['content']});
+    return{plan:'Plan: '+as.map(a=>deptLabel(a.dept)).join(' + '),assignments:as}}
+  const list=[['research',P.research],['amazon',null],['content',P.content],['marketing',P.marketing],['review',P.review]].map(([k,p])=>k==='amazon'?`- amazon: the Amazon Hunting Department (${HUNTERS.map(h=>P[h].name).join(', ')}) finds products, then the Amazon Advance Hunting Department (${ANALYSTS.map(h=>P[h].name).join(', ')}) tests them deeply and makes a final list.`:`- ${k}: ${p.name}, ${ROOMS[k].name}. ${p.role}`).join('\n')+`\n- ebay: the eBay Product Hunting Department (${P.ebay1.name}, ${P.ebay2.name}) finds dropshipping products, eBay Sourcing (${P.ebaysrc.name}) finds wholesale dropship suppliers and passes/fails them, then ${P.ebay3.name} and ${P.ebay4.name} write SEO titles, item specifics, images and descriptions.\n- ppc: ${P.ppc.name}, Amazon PPC Department, makes keywords and a PPC plan from an ASIN; the Advance department tests it.\n- listing: ${P.listing.name} and ${P.listing2.name}, Amazon Listing Optimization.\n- clients: the Client Hunting Department (${CLIENT_TEAM.map(([c,k])=>P[k].name+' '+c).join(', ')}) finds agency clients for Amazon private label services.`;
+  const raw=await askAI(sysFor(P.manager),`The boss gave you this task:\n"${task}"\n\nYour departments:\n${list}\n\nSplit the task into assignments for only the departments really needed (usually 1 to 4). Any Amazon product finding goes to "amazon". Any eBay work goes to "ebay". Amazon PPC, ad keywords or an ASIN goes to "ppc". Writing or optimizing an Amazon listing goes to "listing". Finding clients or leads for the agency goes to "clients". Use "needs" when a department must wait for another's work (only departments listed earlier in your answer).\nReply with ONLY JSON:\n{"plan":"one short sentence","assignments":[{"dept":"research","task":"...","needs":[]}]}`);
+  const j=parseJSON(raw)||{},ok=['research','amazon','content','marketing','review','ebay','ppc','listing','clients'],seen=new Set();
   const as=(j.assignments||[]).filter(a=>ok.includes(a.dept)&&!seen.has(a.dept)&&seen.add(a.dept)).map((a,i,arr)=>({dept:a.dept,task:String(a.task||task),needs:(a.needs||[]).filter(n=>arr.slice(0,i).some(x=>x.dept===n))}));
   if(!as.length)return{plan:'Sending this to the best department.',assignments:[{dept:/amazon|product/i.test(task)?'amazon':'research',task,needs:[]}]};
   return{plan:j.plan||'Plan ready.',assignments:as};
@@ -747,9 +846,324 @@ async function workerCall(p,task,bossTask,ctx){
 }
 async function managerFinal(task,results,mode){
   if(isDemo()){await sleep(1500);return{reply:PH.done[mode]+' '+({en:'(demo) Everything is saved in the Records sheet.',roman:'(demo) Sab kuch Records sheet mein save hai.',urdu:'(ڈیمو) سب کچھ ریکارڈز شیٹ میں محفوظ ہے۔'})[mode],speech:PH.done.hi+' सब कुछ रिकॉर्ड्स शीट में सेव है।'}}
-  const rep=results.map(r=>`[${r.who}]: ${r.summary}\n`+(r.products||r.items||[]).slice(0,10).map(x=>'- '+(x.name||x.title)+': '+(x.whyWinner||x.details||'').slice(0,200)).join('\n')).join('\n\n').slice(0,6000);
+  const rep=results.map(r=>`[${r.who}]: ${r.summary}\n`+(r.products||r.listings||r.items||(r.plan?r.plan.keywords:[])||[]).slice(0,10).map(x=>'- '+(x.name||x.title||x.product||x.keyword)+': '+String(x.whyWinner||x.details||x.profit||x.match||'').slice(0,200)).join('\n')).join('\n\n').slice(0,6000);
   const raw=await askAI(sysFor(P.manager),`Boss's task: "${task}"\n\nReports from your team:\n${rep}\n\nYou are reporting back to your boss in person. Start with "${PH.done[mode]}" then give the key results and one clear next step, at most 120 words, warm and natural like a real manager speaking. Mention full details are in the Records sheet. ${langInstr(mode)}\nReply with ONLY JSON: {"reply":"...","speech":"..."} where ${speechInstr(mode)}`);
   const j=parseJSON(raw);return j&&j.reply?j:{reply:raw,speech:''};
+}
+
+/* ================= NEW DEPARTMENTS ================= */
+const DEMO_AMZ=[['Silicone stove gap cover','Bamboo drawer organizer','Under-sink shelf','Magnetic spice rack','Fridge organizer bins','Over-door pantry rack','Pot lid holder','Sink caddy sponge holder','Cabinet door hooks','Stackable can rack','Herb keeper','Lazy susan turntable'],
+  ['Collapsible pet water bowl','Dog poop bag holder','Resistance band set','Yoga mat strap','Cooling towel','Pet hair remover roller','Dog seat belt leash','Cat window perch','Jump rope with counter','Massage ball set','Hiking phone holster','Gym bag organizer'],
+  ['Desk cable box','Monitor riser','Jewelry travel case','Baby nail trimmer','Passport wallet','Laptop sleeve organizer','Under-desk drawer','Toiletry bottle set','Car seat back organizer','Gift wrap storage bag','Pen holder dock','Travel adapter pouch']];
+const DEMO_EBAY=[['Garden kneeler pad','Hose nozzle sprayer','Car trunk organizer','Magnetic tool wristband','Weed puller tool','Tire pressure gauge','Window scraper set','Solar fence light','Drawer slide brackets','Car seat gap filler'],
+  ['Pet grooming glove','Electric nail file','LED mirror light','Fitness grip trainer','Phone tripod mini','Dog cooling mat','Facial roller set','Bluetooth tracker tag','Ab roller wheel','Cat laser toy']];
+const ANGLES=['problem-solving products people use daily','products that bundle well','items with weak listings and bad photos','small, light accessories for a popular main product','gifts that sell all year','refills and replacement parts people re-buy','niche hobby supplies','storage for small spaces','products for new parents (non-gated)','items for remote workers','car and travel comfort',"pet owners' daily annoyances"];
+function pickAngles(){return[...ANGLES].sort(()=>Math.random()-0.5).slice(0,2).join(' + ')}
+function recentNames(tab){return S.sheet[tab].slice(-120).map(r=>String(r.name||'')).filter(Boolean).reverse()}
+function freshPick(pool,seen,n){const low=new Set(seen.map(x=>x.toLowerCase()));let f=pool.filter(x=>!low.has(x.toLowerCase()));if(f.length<n)f=pool.slice();return f.sort(()=>Math.random()-0.5).slice(0,n)}
+const today=()=>new Date().toLocaleString();
+const ebaySold=kw=>`https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(kw||'')}&LH_Sold=1&LH_Complete=1`;
+const aliexLink=kw=>`https://www.aliexpress.com/w/wholesale-${encodeURIComponent(String(kw||'').trim().replace(/\s+/g,'-'))}.html`;
+const cjLink=kw=>`https://www.google.com/search?q=${encodeURIComponent('site:cjdropshipping.com '+(kw||''))}`;
+async function handOver(from,to,label,gold){await act(from,async()=>{from.carry=gold?'gold':true;say(from,label,2200);await goVisit(from,to);await sleep(1300);from.carry=false;say(to,'Got it!',1600);await sleep(500);await goSeat(from)})}
+async function busyWork(p,text,fn){await act(p,()=>goSeat(p));p.typing=true;p.workText=text;try{return await fn()}finally{p.typing=false}}
+
+/* ---- Amazon sourcing ---- */
+async function amzSourcingCall(src,bossTask,products,market){
+  if(isDemo()){await sleep(3000);return{summary:`(demo) ${src.name} prepared supplier searches for ${products.length} products.`,suppliers:products.map(p=>({name:p.name,supplierType:'Manufacturer (not a trading company)',searchTerms:p.keyword||p.name,filters:'Verified Supplier + Trade Assurance + 3+ years + 4.5 stars + 90% response',targetPrice:'$2.00-$3.50 FOB',moq:'300-500 pcs',sampleCost:'$30-$60 incl. shipping',certifications:'Check category rules for Amazon '+market,questions:'Custom logo? Custom packaging? Lead time? Defect rate? Can you share a factory video?',redFlags:'Price far below others, no factory video, refuses Trade Assurance'}))}}
+  const raw=await askAI(sysFor(src)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nMarketplace: Amazon ${market}. Budget: ${S.criteria.budget}.\n\nThese FINAL products passed the advanced test:\n${JSON.stringify(products.map(p=>({name:p.name,keyword:p.keyword,price:p.price,netProfit:p.netProfit})))}\n\nFor each product, prepare an exact sourcing brief for finding a VERIFIED manufacturer on Alibaba. You cannot browse Alibaba live, so do NOT invent company names and never claim a specific supplier is verified. Give: best supplier type, exact English search terms (add Chinese terms for 1688 if useful), must-have filters (Verified Supplier, Trade Assurance, years, rating, response rate), realistic target unit price, typical MOQ, sample cost, certifications/compliance needed for Amazon ${market}, 4-6 questions to ask, and red flags.\nReply with ONLY JSON: {"summary":"one or two sentences","suppliers":[{"name":"product name","supplierType":"","searchTerms":"","filters":"","targetPrice":"","moq":"","sampleCost":"","certifications":"","questions":"","redFlags":""}]}`);
+  const j=parseJSON(raw);if(!j||!Array.isArray(j.suppliers))throw new Error('Did not get the sourcing brief from the AI.');return j;
+}
+
+/* ---- eBay ---- */
+const EBAY_EXPERT='\n\nYou are an experienced eBay US dropshipper. You follow eBay rules: dropship only from WHOLESALE suppliers (for example CJdropshipping, Spocket, Zendrop or US wholesale warehouses), never by buying from other retail marketplaces such as Amazon, Walmart or AliExpress retail listings, which eBay does not allow. Avoid VeRO/branded items, fragile, hazmat and oversized items. All numbers are estimates; never claim live eBay data. Keep product names, titles and keywords in English.';
+async function ebayHuntCall(h,bossTask,i){
+  const seen=recentNames('ebay');
+  if(isDemo()){await sleep(2800+i*800);const L=freshPick(DEMO_EBAY[i],seen,4);return{summary:`(demo) ${h.name} found ${L.length} new eBay dropship products.`,products:L.map((n,j)=>({name:n,keyword:n.toLowerCase(),soldPrice:'$'+(18+j*5)+'.99',sellThrough:(55+j*8)+'%',competition:j%2?'Medium':'Low',whyGood:'Sells steadily, light to ship, unbranded.',score:9-j}))}}
+  const raw=await askAI(sysFor(h)+EBAY_EXPERT,`Boss's request: "${bossTask}"\n\nYou are eBay hunter ${i+1} of 2. Search ONLY in your own focus area (from your job). Today's fresh angle: ${pickAngles()}.\nThese were ALREADY found before. Do NOT repeat them or close variants:\n${seen.slice(0,80).join('; ')||'(none yet)'}\n\nFind 4 NEW products good for eBay US DROPSHIPPING: unbranded, light, sold price about $15-$70, strong sell-through on sold listings, can be dropshipped from a wholesale supplier with 3-10 day shipping. If the boss gave other criteria, follow the boss.\nReply with ONLY JSON: {"summary":"one sentence","products":[{"name":"","keyword":"main eBay search keyword","soldPrice":"typical sold price","sellThrough":"estimated sell-through %","competition":"Low|Medium|High","whyGood":"","score":8}]}`,0.95);
+  const j=parseJSON(raw);if(!j||!Array.isArray(j.products))throw new Error('Did not get an eBay product list from the AI.');
+  j.products=j.products.filter(x=>!seen.some(n=>n.toLowerCase()===String(x.name||'').toLowerCase()));return j;
+}
+async function ebaySourcingCall(src,bossTask,products){
+  if(isDemo()){await sleep(3000);return{summary:`(demo) ${src.name} checked ${products.length} products.`,results:products.map((p,i)=>({name:p.name,keyword:p.keyword,soldPrice:p.soldPrice,sellThrough:p.sellThrough,supplierPlatform:i%3?'CJdropshipping (US warehouse)':'Spocket (US supplier)',supplierCost:'$'+(6+i)+'.50',shippingDays:i%2?'4-7 days':'3-5 days',ebayFees:'~13.6% + $0.40',profit:i%3===2?'$2.10':'$'+(7+i)+'.20',verdict:i%3===2?'FAIL':'PASS',reason:i%3===2?'Profit too thin after fees':'Good margin and fast shipping'}))}}
+  const raw=await askAI(sysFor(src)+EBAY_EXPERT,`Boss's request: "${bossTask}"\n\nThe eBay hunters brought these products:\n${JSON.stringify(products)}\n\nFor each product find the best WHOLESALE dropship source (platform + type of supplier), estimate supplier cost incl. shipping, shipping time to US buyers, eBay fees (about 13.6% final value fee + $0.40 per order) and profit. Verdict PASS only if profit is at least $5 and at least 20% of the sold price, shipping is 10 days or less, and the product is safe under eBay rules. Do not invent specific shop names.\nReply with ONLY JSON: {"summary":"one or two sentences","results":[{"name":"","keyword":"","soldPrice":"","sellThrough":"","supplierPlatform":"","supplierCost":"","shippingDays":"","ebayFees":"","profit":"","verdict":"PASS|FAIL","reason":""}]}`);
+  const j=parseJSON(raw);if(!j||!Array.isArray(j.results))throw new Error('Did not get the eBay sourcing result from the AI.');return j;
+}
+async function ebaySeoCall(p,bossTask,products,part){
+  if(isDemo()){await sleep(2600);return{items:products.map(x=>part==='title'?{name:x.name,title:(x.name+' Durable Portable Accessory New Fast Free Shipping').slice(0,80),specifics:'Brand: Unbranded; Type: '+x.name+'; Material: Mixed; Color: Multicolor; Condition: New'}:{name:x.name,images:'1) White background main 2) Size and dimensions 3) In use 4) Feature callouts 5) Package contents 6) Close-up 7) Lifestyle',description:'Mobile-friendly description: what it is, key benefits, specs, package contents, shipping and returns.'})}}
+  const ask=part==='title'?'For each product write an eBay SEO title of AT MOST 80 characters (most searched words first, no keyword spam, no brand names you do not own) and full item specifics (Brand: Unbranded, Type, Material, Color, Size, Features, etc.). JSON: {"items":[{"name":"","title":"","specifics":"Key: value; Key: value"}]}'
+    :'For each product write a 7-10 image plan for the eBay gallery (white-background main image first, then sizes, in-use, features, package) and a clear mobile-friendly description (benefits, specs, package contents, shipping and returns). JSON: {"items":[{"name":"","images":"1) ... 2) ...","description":""}]}';
+  const raw=await askAI(sysFor(p)+EBAY_EXPERT,`Boss's request: "${bossTask}"\n\nThese eBay products PASSED sourcing:\n${JSON.stringify(products.map(x=>({name:x.name,keyword:x.keyword,soldPrice:x.soldPrice})))}\n\n${ask}\nReply with ONLY that JSON.`);
+  const j=parseJSON(raw);if(!j||!Array.isArray(j.items))throw new Error('Did not get eBay listing work from the AI.');return j;
+}
+async function ebayPipeline(bossTask){
+  const Hs=[P.ebay1,P.ebay2],src=P.ebaysrc,seo=P.ebay3,img=P.ebay4,team=[...Hs,src,seo,img];
+  team.forEach(p=>p.job=true);
+  try{
+    const files=await Promise.all(Hs.map((h,i)=>(async()=>{
+      let r;try{r=await busyWork(h,'eBay hunting',()=>ebayHuntCall(h,bossTask,i))}catch(e){log(h.name,helpFor(e),null,true);say(h,'Problem! See log',4000);return null}
+      log(h.name,r.summary+'\n'+r.products.map(x=>`• ${x.name} (${x.soldPrice}, sell-through ${x.sellThrough})`).join('\n'),h.shirt);
+      if(r.products.length)await handOver(h,src,`${src.name}, ${r.products.length} products for sourcing`);
+      return{...r,products:r.products.map(x=>({...x,hunter:h.name}))};
+    })()));
+    const all=files.filter(Boolean).flatMap(f=>f.products);
+    if(!all.length)return{kind:'ebay',who:'eBay departments',summary:'No new eBay products were found this time.',listings:[]};
+    let sr;try{sr=await busyWork(src,'Finding dropship suppliers',()=>ebaySourcingCall(src,bossTask,all))}catch(e){log(src.name,helpFor(e),null,true);return{kind:'ebay',who:'eBay departments',summary:'eBay sourcing could not finish.',listings:[]}}
+    const res=sr.results.map(x=>{const a=all.find(a=>a.name===x.name)||{};return{...x,hunter:a.hunter||'',keyword:x.keyword||a.keyword||x.name,sellThrough:x.sellThrough||a.sellThrough||''}});
+    const passed=res.filter(x=>/pass/i.test(x.verdict||''));
+    log(src.name,`${sr.summary}\nPASSED ${passed.length} of ${res.length}:\n`+(passed.map(x=>`✓ ${x.name} – ${x.supplierPlatform}, cost ${x.supplierCost}, profit ${x.profit}`).join('\n')||'none'),src.shirt);
+    let merged=res.map(x=>({...x}));
+    if(passed.length){
+      await handOver(src,seo,`${seo.name}, ${passed.length} passed products. Listings banao!`,true);
+      say(seo,`${img.name}, images aur description tum karo`,2400);
+      const [t,d]=await Promise.all([busyWork(seo,'Writing eBay titles',()=>ebaySeoCall(seo,bossTask,passed,'title')).catch(e=>{log(seo.name,helpFor(e),null,true);return{items:[]}}),
+        busyWork(img,'Planning images',()=>ebaySeoCall(img,bossTask,passed,'images')).catch(e=>{log(img.name,helpFor(e),null,true);return{items:[]}})]);
+      merged=merged.map(x=>/pass/i.test(x.verdict||'')?{...x,...(t.items.find(i=>i.name===x.name)||{}),...(d.items.find(i=>i.name===x.name)||{})}:x);
+      log(seo.name,'eBay titles:\n'+t.items.map(x=>`✎ ${x.title} (${String(x.title||'').length} chars)`).join('\n'),seo.shirt);
+      log(img.name,`Image plans and descriptions ready for ${d.items.length} products.`,img.shirt);
+      await handOver(img,seo,'Images + description ready');
+    }
+    const rows=merged.map(x=>({date:today(),...x,soldLink:ebaySold(x.keyword||x.name),supplierLink:/cj/i.test(x.supplierPlatform||'')?cjLink(x.keyword||x.name):aliexLink(x.keyword||x.name)}));
+    await deliverToRecords(passed.length?seo:src,'ebay',[['ebay',rows],['findings',rows.filter(x=>/pass/i.test(x.verdict||'')).map(x=>({date:x.date,task:bossTask,dept:'eBay',agent:seo.name,title:x.title||x.name,details:`${x.soldPrice} · cost ${x.supplierCost} · profit ${x.profit} · ${x.supplierPlatform}`,link:x.soldLink}))]],'eBay listings ready. Please file');
+    showTab('ebay');
+    return{kind:'ebay',who:'eBay Hunting + eBay Sourcing + eBay SEO',summary:`${passed.length} of ${res.length} eBay products passed sourcing and got full SEO listings.`,listings:rows.filter(x=>/pass/i.test(x.verdict||''))};
+  }finally{team.forEach(p=>{p.job=false;p.typing=false})}
+}
+
+/* ---- Amazon PPC ---- */
+function parseAsin(t){const m=String(t).match(/\bB0[A-Z0-9]{8}\b/i);return m?m[0].toUpperCase():''}
+async function ppcCall(f,bossTask,asin){
+  if(isDemo()){await sleep(3000);return{summary:`(demo) ${f.name} built a PPC plan${asin?' for '+asin:''}.`,product:'Demo product',keywords:[['silicone stove gap cover','Exact','High','$0.95'],['stove gap filler','Phrase','High','$0.80'],['kitchen counter gap cover','Broad','Medium','$0.60'],['oven gap guard','Exact','Medium','$0.70']].map(([k,m,p,b])=>({keyword:k,match:m,priority:p,bid:b,why:'Strong buyer intent'})),campaigns:[{name:'SP - Auto - Discovery',type:'Sponsored Products Auto',budget:'$15/day',notes:'Harvest converting search terms weekly'},{name:'SP - Exact - Core',type:'Sponsored Products Manual Exact',budget:'$20/day',notes:'Top 5 keywords, raise bids on winners'}],negatives:'free, cheap, used, diy',plan:'Week 1-2: auto + exact. Week 3: harvest search terms. Week 4: cut keywords above target ACoS.'}}
+  const raw=await askAI(sysFor(f),`Boss's request: "${bossTask}"\nASIN: ${asin||'(not given)'}\n\nYou cannot open Amazon, so base the work only on the product details in the boss's words. If they are missing, say clearly in "summary" which details you need (product title, price, category, main features) and still make a careful best-effort plan.\nFind 15-25 relevant buyer keywords and build a launch PPC plan: keyword list (keyword, match type, priority, suggested starting bid), campaign structure (name, type, daily budget, notes), negative keywords, and a 4-week plan. Estimates only; never claim real search volumes.\nReply with ONLY JSON: {"summary":"","product":"short product name","keywords":[{"keyword":"","match":"Exact|Phrase|Broad","priority":"High|Medium|Low","bid":"","why":""}],"campaigns":[{"name":"","type":"","budget":"","notes":""}],"negatives":"","plan":""}`,0.5);
+  const j=parseJSON(raw);if(!j||!Array.isArray(j.keywords))throw new Error('Did not get a PPC plan from the AI.');return j;
+}
+async function ppcReviewCall(a,bossTask,plan,asin){
+  if(isDemo()){await sleep(2500);return{verdict:'PASS',score:8,issues:'Budget split is fine; add a phrase campaign after week 2.',fixes:'Start exact bids 10% lower and raise after 7 days of data.',targetAcos:'Break-even ACoS about 30%, target 25%'}}
+  const raw=await askAI(sysFor(a)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nASIN: ${asin||'(not given)'}\n\nThe PPC department made this plan:\n${JSON.stringify(plan).slice(0,6000)}\n\nRun an ADVANCED test on it: are the keywords relevant and buyer-intent, are match types and bids sensible, is the budget realistic, what are break-even and target ACoS, what is missing or risky? Verdict PASS or NEEDS FIX.\nReply with ONLY JSON: {"verdict":"PASS|NEEDS FIX","score":8,"issues":"","fixes":"","targetAcos":""}`);
+  const j=parseJSON(raw);if(!j||!j.verdict)throw new Error('Did not get the PPC review from the AI.');return j;
+}
+async function ppcPipeline(bossTask){
+  const f=P.ppc,a=P.adv1,asin=parseAsin(bossTask);f.job=true;
+  try{
+    if(!asin)say(f,'ASIN nahi mila, details se plan banata hoon',3000);
+    let plan;try{plan=await busyWork(f,'Keyword research',()=>ppcCall(f,bossTask,asin))}catch(e){log(f.name,helpFor(e),null,true);return{kind:'ppc',who:'PPC',summary:'The PPC plan could not finish.',plan:null}}
+    log(f.name,`${plan.summary}\n`+plan.keywords.slice(0,10).map(k=>`• ${k.keyword} [${k.match}] ${k.bid}`).join('\n')+(plan.keywords.length>10?`\n…and ${plan.keywords.length-10} more`:''),f.shirt);
+    const z=P.ppc2;z.job=true;
+    try{await handOver(f,z,`${z.name}, keywords ready. Campaigns banao!`);
+      const camp=await busyWork(z,'Building campaigns',()=>ppcCampaignCall(z,bossTask,plan,asin)).catch(e=>{log(z.name,helpFor(e),null,true);return null});
+      if(camp){plan={...plan,campaigns:camp.campaigns||plan.campaigns,negatives:camp.negatives||plan.negatives,plan:camp.plan||plan.plan};log(z.name,'Campaigns:\n'+(plan.campaigns||[]).map(c=>`• ${c.name} – ${c.budget}`).join('\n'),z.shirt)}
+      await handOver(z,a,`${a.name}, PPC plan advanced test ke liye`)}finally{z.job=false}
+    let rev;try{rev=await busyWork(a,'Testing PPC plan',()=>ppcReviewCall(a,bossTask,plan,asin))}catch(e){log(a.name,helpFor(e),null,true);rev={verdict:'NOT TESTED',score:'',issues:e.message,fixes:'',targetAcos:''}}
+    log(a.name,`PPC test: ${rev.verdict} (score ${rev.score})\nIssues: ${rev.issues}\nFixes: ${rev.fixes}\nACoS: ${rev.targetAcos}`,a.shirt);
+    const d=today(),prod=plan.product||'';
+    const rows=[...plan.keywords.map(k=>({date:d,asin,product:prod,type:'Keyword',item:k.keyword,match:k.match,priority:k.priority,bid:k.bid,details:k.why||''})),
+      ...(plan.campaigns||[]).map(c=>({date:d,asin,product:prod,type:'Campaign',item:c.name,match:c.type,priority:'',bid:c.budget,details:c.notes||''})),
+      {date:d,asin,product:prod,type:'Negatives',item:plan.negatives||'',match:'Negative',priority:'',bid:'',details:''},
+      {date:d,asin,product:prod,type:'4-week plan',item:'',match:'',priority:'',bid:'',details:plan.plan||''},
+      {date:d,asin,product:prod,type:'Advanced test',item:rev.verdict,match:'',priority:String(rev.score||''),bid:rev.targetAcos||'',details:`Issues: ${rev.issues} | Fixes: ${rev.fixes}`}];
+    await deliverToRecords(a,'ppc',[['ppc',rows]],'PPC plan tested. Please file');showTab('ppc');
+    return{kind:'ppc',who:'PPC Department + Advance test',summary:`${plan.summary} Advanced test: ${rev.verdict}.`,asin,plan,review:rev};
+  }finally{f.job=false}
+}
+
+/* ---- Amazon listing ---- */
+async function listingCall(s,bossTask){
+  if(isDemo()){await sleep(3000);return{summary:'(demo) Listing optimized.',listings:[{product:'Demo product',title:'Silicone Stove Gap Cover (2 Pack) - Heat Resistant, Easy Clean, Fits Most Stoves',bullets:'HEAT SAFE: ... | EASY CLEAN: ... | UNIVERSAL FIT: ... | 2-PACK VALUE: ... | WORRY-FREE: ...',description:'Short, benefit-led description with specs.',backend:'stove gap filler counter guard oven spill',images:'1) Main white 2) Infographic 3) Size 4) In use 5) Before/after 6) Package 7) Lifestyle'}]}}
+  const fin=S.sheet.final.slice(-5).map(r=>r.name).join('; ');
+  const raw=await askAI(sysFor(s)+AMZ_EXPERT,`Boss's request: "${bossTask}"\n(Recent final products from the team, if the boss refers to them: ${fin||'none'})\n\nCreate a fully optimized Amazon listing for each product the boss means (1-3 products): title (main keyword first, within Amazon limits), 5 bullet points (benefit first), description, backend search terms (no repeats, no brands, under 250 bytes) and a 7-image plan. You cannot open Amazon; use only the given details and say what you assumed.\nReply with ONLY JSON: {"summary":"","listings":[{"product":"","title":"","bullets":"... | ... | ... | ... | ...","description":"","backend":"","images":"1) ... 2) ..."}]}`);
+  const j=parseJSON(raw);if(!j||!Array.isArray(j.listings))throw new Error('Did not get the listing from the AI.');return j;
+}
+async function listingJob(bossTask){
+  const s=P.listing;s.job=true;
+  try{let r;try{r=await busyWork(s,'Optimizing listing',()=>listingCall(s,bossTask))}catch(e){log(s.name,helpFor(e),null,true);return{kind:'listing',who:'Listing',summary:'The listing could not finish.',listings:[]}}
+    log(s.name,r.summary+'\n'+r.listings.map(l=>`✎ ${l.title}`).join('\n'),s.shirt);
+    const an=P.listing2;an.job=true;
+    try{await handOver(s,an,`${an.name}, images aur A+ content tum karo`);
+      const im=await busyWork(an,'Designing images & A+',()=>listingImagesCall(an,bossTask,r.listings)).catch(e=>{log(an.name,helpFor(e),null,true);return null});
+      if(im&&Array.isArray(im.items)){r.listings=r.listings.map((l,i)=>({...l,images:(im.items[i]||{}).images||l.images,aplus:(im.items[i]||{}).aplus||''}));log(an.name,`Image plans and A+ content ready for ${im.items.length} listing(s).`,an.shirt)}
+      await handOver(an,s,'Images + A+ ready')}finally{an.job=false}
+    await deliverToRecords(s,'listing',[['listing',r.listings.map(l=>({date:today(),...l}))]],'Listing ready. Please file');showTab('listing');
+    return{kind:'listing',who:'Amazon Listing Optimization',summary:r.summary,listings:r.listings};
+  }finally{s.job=false}
+}
+const PIPES={amazon:amazonPipeline,ebay:ebayPipeline,ppc:ppcPipeline,listing:listingJob};
+
+/* ================= PDF REPORTS (ecommwithtaha stamp) ================= */
+const PDF_MAP={'★':'*','✓':'v','✔':'v','•':'-','→':'->','←':'<-','–':'-','—':'-','’':"'",'‘':"'",'“':'"','”':'"','…':'...','×':'x','≥':'>=','≤':'<=','✎':'-'};
+const pclean=t=>String(t??'').replace(/[★✓✔•→←–—’‘“”…×≥≤✎]/g,c=>PDF_MAP[c]).replace(/[^\x20-\x7E\n]/g,'').replace(/[ \t]+/g,' ').trim();
+async function makePdf(rep){
+  if(!window.PDFLib)throw new Error('PDF library did not load (it needs internet).');
+  const {PDFDocument,StandardFonts,rgb,degrees}=PDFLib;
+  const doc=await PDFDocument.create(),F=await doc.embedFont(StandardFonts.Helvetica),B=await doc.embedFont(StandardFonts.HelveticaBold);
+  doc.setTitle('ecommwithtaha - AI Agent Office report');doc.setAuthor('ecommwithtaha');
+  const Wp=595,Hp=842,M=44,ink=rgb(0.12,0.14,0.2),muted=rgb(0.42,0.46,0.55),accent=rgb(0.82,0.42,0.04),red=rgb(0.76,0.1,0.12);let page,y;
+  const wrap=(text,f,size,maxW)=>{const out=[];pclean(text).split('\n').forEach(par=>{let line='';par.split(' ').forEach(w=>{const t=line?line+' '+w:w;if(f.widthOfTextAtSize(t,size)>maxW&&line){out.push(line);line=w}else line=t});out.push(line)});return out};
+  function stamp(pg){const cx=Wp-118,cy=Hp-52,th=-9,rad=th*Math.PI/180,c=Math.cos(rad),s=Math.sin(rad);
+    const rect=(w,h,bw,fill)=>pg.drawRectangle({x:cx-(w/2)*c+(h/2)*s,y:cy-(w/2)*s-(h/2)*c,width:w,height:h,rotate:degrees(th),borderColor:red,borderWidth:bw,color:fill?rgb(1,0.97,0.96):undefined,opacity:fill?0.95:undefined});
+    rect(178,60,2.6,true);rect(168,50,0.9,false);
+    const txt=(t,f,size,dy)=>{const w=f.widthOfTextAtSize(t,size),dx=-w/2;pg.drawText(t,{x:cx+dx*c-dy*s,y:cy+dx*s+dy*c,size,font:f,color:red,rotate:degrees(th)})};
+    txt('ecommwithtaha',B,18,-4);txt('OFFICIAL WORK REPORT',B,7,-17);txt(new Date().toLocaleDateString('en-GB'),F,7,12)}
+  function newPage(){page=doc.addPage([Wp,Hp]);
+    page.drawRectangle({x:0,y:Hp-88,width:Wp,height:88,color:rgb(0.04,0.07,0.13)});
+    page.drawText('AI AGENT OFFICE',{x:M,y:Hp-40,size:17,font:B,color:rgb(1,0.86,0.36)});
+    page.drawText('Work report by your AI team',{x:M,y:Hp-58,size:10,font:F,color:rgb(0.75,0.8,0.9)});
+    stamp(page);
+    page.drawLine({start:{x:M,y:34},end:{x:Wp-M,y:34},thickness:0.5,color:muted});
+    page.drawText(`ecommwithtaha  |  AI Agent Office  |  page ${doc.getPageCount()}`,{x:M,y:22,size:8,font:F,color:muted});
+    page.drawText('All numbers are AI estimates. Verify on Amazon, eBay and with suppliers before you buy stock.',{x:M,y:12,size:7,font:F,color:muted});
+    y=Hp-116}
+  const need=h=>{if(y-h<48)newPage()};
+  const head=t=>{need(40);y-=6;page.drawRectangle({x:M,y:y-6,width:Wp-2*M,height:22,color:rgb(0.97,0.94,0.88)});page.drawRectangle({x:M,y:y-6,width:4,height:22,color:accent});page.drawText(pclean(t),{x:M+10,y,size:12,font:B,color:accent});y-=28};
+  const para=(t,size=10,f=F,col=ink,ind=0)=>wrap(t,f,size,Wp-2*M-ind).forEach(l=>{need(size+4);page.drawText(l,{x:M+ind,y,size,font:f,color:col});y-=size+4});
+  const kv=(k,v)=>{if(v===undefined||v===null||String(v).trim()==='')return;const kk=pclean(k)+': ',kw=B.widthOfTextAtSize(kk,9),lines=wrap(v,F,9,Wp-2*M-kw-12);
+    lines.forEach((l,i)=>{need(13);if(!i)page.drawText(kk,{x:M+10,y,size:9,font:B,color:ink});page.drawText(l,{x:M+10+kw,y,size:9,font:F,color:ink});y-=13})};
+  newPage();
+  para('Task: '+rep.task,11,B);para('Date: '+rep.date,9,F,muted);y-=6;
+  head('Report to the boss');para(/[\u0600-\u06FF\u0900-\u097F]/.test(rep.summary)?'(The report was written in Urdu/Hindi script. Read it in the app; the details below are in English.)':rep.summary,10);
+  for(const r of rep.results){
+    if(!r)continue;
+    if(r.kind==='amazon'){head('Amazon - final products');if(!(r.products||[]).length)para('No product passed the advanced test this time.');
+      (r.products||[]).forEach(x=>{need(50);para(`#${x.rank||''}  ${x.name}`,11,B);kv('Price',x.price);kv('Net profit / unit',x.netProfit);kv('ROI',x.roi);kv('Score',x.finalScore);kv('Why it won',x.whyWinner);kv('Next steps',x.nextSteps);kv('Tested by',x.testedBy);kv('Amazon search',links(r.market||'US',x.keyword||x.name).amazonLink);y-=6});
+      if((r.suppliers||[]).length){head('Amazon - sourcing (verified manufacturer search)');para('These are exact search briefs, not live supplier checks. Open the link, tick "Verified Supplier" and "Trade Assurance", then compare 3-5 factories and order samples.',8,F,muted);y-=4;
+        r.suppliers.forEach(x=>{need(50);para(x.name,11,B);kv('Supplier type',x.supplierType);kv('Search terms',x.searchTerms);kv('Must-have filters',x.filters);kv('Target unit price',x.targetPrice);kv('MOQ',x.moq);kv('Sample cost',x.sampleCost);kv('Certifications',x.certifications);kv('Ask the supplier',x.questions);kv('Red flags',x.redFlags);kv('Alibaba search',links(r.market||'US',x.searchTerms||x.name).supplierLink);y-=6})}}
+    else if(r.kind==='ebay'){head('eBay dropshipping - ready listings');if(!(r.listings||[]).length)para(r.summary||'No product passed eBay sourcing this time.');
+      (r.listings||[]).forEach(x=>{need(50);para(x.name,11,B);kv('Sold price',x.soldPrice);kv('Sell-through',x.sellThrough);kv('Supplier',x.supplierPlatform);kv('Supplier cost',x.supplierCost);kv('Shipping',x.shippingDays);kv('eBay fees',x.ebayFees);kv('Profit',x.profit);kv('eBay title',x.title);kv('Item specifics',x.specifics);kv('Image plan',x.images);kv('Description',x.description);kv('Check sold listings',x.soldLink);kv('Supplier search',x.supplierLink);y-=6})}
+    else if(r.kind==='ppc'){head('Amazon PPC plan'+(r.asin?' - '+r.asin:''));if(!r.plan){para(r.summary);continue}
+      para(r.plan.summary||'',9);y-=4;para('Keywords',10,B);r.plan.keywords.forEach(k=>para(`- ${k.keyword}   [${k.match}]   ${k.priority||''}   bid ${k.bid||''}`,9,F,ink,8));y-=4;
+      para('Campaigns',10,B);(r.plan.campaigns||[]).forEach(c=>para(`- ${c.name} | ${c.type} | ${c.budget} | ${c.notes||''}`,9,F,ink,8));y-=2;
+      kv('Negative keywords',r.plan.negatives);kv('4-week plan',r.plan.plan);y-=4;para('Advanced test',10,B);
+      const v=r.review||{};kv('Verdict',v.verdict);kv('Score',v.score);kv('Issues',v.issues);kv('Fixes',v.fixes);kv('Target ACoS',v.targetAcos)}
+    else if(r.kind==='listing'){head('Amazon listing optimization');(r.listings||[]).forEach(l=>{need(50);para(l.product||'Listing',11,B);kv('Title',l.title);kv('Bullets',String(l.bullets||'').split('|').map(b=>'- '+b.trim()).join('\n'));kv('Description',l.description);kv('Backend keywords',l.backend);kv('Image plan',l.images);kv('A+ content',l.aplus);y-=6})}
+    else if(r.kind==='clients'){(r.countries||[{country:r.country,agent:r.agent,targets:r.targets}]).forEach(cn=>{head(`Client hunting - ${cn.country}`+(cn.agent?` (by ${cn.agent})`:''));
+      para('These are lead TARGETS with exact searches. Open each link and collect the real businesses yourself; no contact details were invented.',8,F,muted);y-=4;
+      (cn.targets||[]).forEach(t=>{need(50);para(t.segment||'',11,B);kv('Platform',t.platform);kv('Search',t.searchQuery);kv('Where to look',t.whereToFind);kv('Why a good fit',t.whyGoodFit);kv('Outreach message',t.outreach);kv('Qualifying questions',t.questions);kv('Open search',t.link);y-=6})})}
+    else{head(r.who||'Team work');para(r.summary||'',10);(r.items||[]).forEach(it=>{para('- '+(it.title||''),10,B);para(it.details||'',9,F,ink,10);if(it.link)para(it.link,8,F,muted,10)})}
+  }
+  return new Blob([await doc.save()],{type:'application/pdf'});
+}
+function logPdf(blob,name){
+  const url=URL.createObjectURL(blob),L=$('log'),d=document.createElement('div');d.className='msg';d.style.setProperty('--c','#ffe066');
+  d.innerHTML=`<b>PDF report · ecommwithtaha</b>${esc(name)}<br><a class="pdf" href="${url}" download="${esc(name)}">⬇ Download PDF</a>`;L.appendChild(d);L.scrollTop=L.scrollHeight;
+  if($('autoPdf').checked){const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove()}
+}
+
+/* ================= TRAINING ACADEMY ================= */
+const TRAINEE_POOL=[['Ahmed','m'],['Zoya','f'],['Talha','m'],['Iqra','f'],['Hamid','m'],['Komal','f'],['Junaid','m'],['Mahnoor','f'],['Umair','m'],['Areeba','f'],['Shahzaib','m'],['Laiba','f'],['Waqas','m'],['Rabia','f']];
+const LOOKS=[['#e76f51','#2b2b3a','#c99068','#1b120c'],['#2a9d8f','#262a3a','#e3b48e','#3b2416'],['#e9c46a','#24324a','#b97c55','#120c08'],['#a8dadc','#2e2a44','#d6a07c','#5a2a4a'],['#f4a261','#2b3040','#c68d63','#140d08'],['#cdb4db','#22304a','#e0b08b','#2a160c']];
+const LESSONS=['Aaj hum eBay titles seekhenge','Profit = price - cost - fees - ads','Hamesha sold listings check karo','Supplier se pehle sample mangwao','ACoS kya hota hai? Chalo samjhein','Achi images = zyada sales','Reviews parho, problems dhoondo','80 characters ka eBay title!'];
+if(!S.academy||!Array.isArray(S.academy.trainees)){S.academy={seq:3,trainees:[{id:1,name:'Ahmed',f:false,talent:52},{id:2,name:'Zoya',f:true,talent:66},{id:3,name:'Talha',f:false,talent:41}],hires:[]};save()}
+function traineeDef(t,seat){const L=LOOKS[t.id%LOOKS.length];return{key:'tr'+t.id,room:'training',cab:seat,name:t.name,role:'Trainee at the Training Academy, learning e-commerce from Rehan.',skill:'Learning (trainee): only simple questions about what I am learning',
+  shirt:L[0],pants:L[1],skin:L[2],hair:L[3],style:t.f?['long','hijab','bun'][t.id%3]:['short','curly','cap'][t.id%3],cap:'#2d6cdf'}}
+function hireDef(h,seat){const dn=deptLabel(h.dept);return{...traineeDef(h,seat),room:'newhires',role:`New hire helping the ${dn} team.`,skill:`Helping the ${dn} team (new hire)`}}
+function addPersonLive(def,female){if(female)FEMALE.add(def.key);const p=makePerson(def);idleLoop(p);return p}
+S.academy.trainees.slice(0,3).forEach((t,i)=>{t.seat=i+1;addPersonLive(traineeDef(t,i+1),t.f)});
+S.academy.hires.slice(0,2).forEach((h,i)=>addPersonLive(hireDef(h,i),h.f));
+function tagOf(p){if(/^tr\d+$/.test(p.key)){const t=S.academy.trainees.find(t=>'tr'+t.id===p.key);if(t)return `${p.name} ${Math.round(t.talent)}%`;return p.name+' ★'}return p.name}
+function growTalent(a,b){S.academy.trainees.forEach(t=>{t.talent=Math.min(100,t.talent+a+Math.random()*(b-a));
+  if(t.talent>=85&&!t.ready){t.ready=true;const m=P.manager,line=curMode==='en'?`Boss, ${t.name} is now talented (${Math.round(t.talent)}%). Hire from the Academy?`:`Boss, ${t.name} ab talented ${t.f?'ho gayi':'ho gaya'} hai (${Math.round(t.talent)}%). Academy se hire kar lein?`;
+    say(m,line,6000);log(m.name,line,m.shirt);speak(line,m,curMode,'')}});save()}
+async function academyLoop(){await nap(15000);for(;;){await nap(40000+Math.random()*20000);if(document.hidden||office.meeting)continue;
+  const tr=P.trainer;if(tr&&!office.busy)say(tr,LESSONS[Math.floor(Math.random()*LESSONS.length)],3500);growTalent(1,4)}}
+async function hireTrainee(id,dept){
+  const A=S.academy,t=A.trainees.find(t=>t.id===id),m=P.manager,mode=curMode;if(!t)return;
+  if(A.hires.length>=2){const line=mode==='en'?'Boss, the New Hires Bay is full. The office is getting small, please expand it!':'Boss, New Hires Bay full ho gaya hai. Office chhota pad raha hai, isko expand karwa dein!';
+    say(m,line,6000);log(m.name,line,m.shirt);speak(line,m,mode,'बॉस, न्यू हायर्स बे फुल हो गया है। ऑफिस छोटा पड़ रहा है, इसको एक्सपैंड करवा दें!');return}
+  if(t.talent<70){const line=mode==='en'?`Boss, ${t.name} needs more training first (${Math.round(t.talent)}%).`:`Boss, ${t.name} ko abhi aur training chahiye (${Math.round(t.talent)}%).`;say(P.trainer,line,4000);log(P.trainer.name,line,P.trainer.shirt);return}
+  const p=P['tr'+t.id],oldSeat=p.cabRef.i,seat=A.hires.length;
+  A.trainees=A.trainees.filter(x=>x!==t);const h={id:t.id,name:t.name,f:t.f,talent:t.talent,dept};A.hires.push(h);save();
+  const d=hireDef(h,seat);p.role=d.role;p.skill=d.skill;
+  const line=mode==='en'?`Welcome to the team, ${t.name}! You will help ${deptLabel(dept)}.`:`Welcome ${t.name}! Aap ${deptLabel(dept)} team ki madad karenge.`;
+  say(m,line,4500);log(m.name,line,m.shirt);speak(line,m,mode,'');
+  act(p,async()=>{p.cabRef=makeCab(ROOMS.newhires,seat);p.seated=false;say(p,'Shukriya boss! 🎉',2500);await goSeat(p)});
+  const used=new Set([...A.trainees,...A.hires].map(x=>x.name)),pk=TRAINEE_POOL.find(([n])=>!used.has(n))||['Trainee '+(A.seq+1),'m'];
+  A.seq++;const nt={id:A.seq,name:pk[0],f:pk[1]==='f',talent:20+Math.random()*25,seat:oldSeat};A.trainees.push(nt);save();
+  await sleep(4000);
+  const np=addPersonLive(traineeDef(nt,oldSeat),nt.f),r=ROOMS.training;np.x=r.doorOut.x;np.y=r.doorOut.y;np.seated=false;np.exitVia=[r.doorIn];
+  say(np,'Assalam o alaikum! Main naya trainee hoon',3000);act(np,()=>goSeat(np));
+  log('System',`New trainee ${nt.name} joined the Training Academy.`,'#b8c0ff');
+}
+
+/* ================= OFFICE BOYS ================= */
+const OBS=['ob1','ob2','ob3','ob4','ob5'];
+const KITCHEN_SPOT=()=>({x:ROOMS.pantry.x+56,y:ROOMS.pantry.y+66,face:'left',via:[]});
+async function orderDrink(agent,item){
+  const free=OBS.map(k=>P[k]).filter(o=>o&&!o.errand);if(!free.length)return false;
+  const ob=free.sort((a,b2)=>Math.hypot(a.x-agent.x,a.y-agent.y)-Math.hypot(b2.x-agent.x,b2.y-agent.y))[0];
+  ob.errand=true;const nm=item==='coffee'?'coffee':item==='paani'?'paani':'chai';
+  act(ob,async()=>{ob.tool=null;say(ob,'Ji, abhi laya!',1800);await goSpotVia(ob,'pantry',KITCHEN_SPOT());
+    say(ob,item==='paani'?'💧 Paani le raha hoon':`☕ ${nm} bana raha hoon`,3800);await sleep(4200);
+    ob.carry='cup';ob.cup=item;await goVisit(ob,agent);say(ob,`Ye lijiye ${nm} ${item==='paani'?'💧':'☕'}`,2200);await sleep(1500);
+    ob.carry=false;say(agent,'Shukriya! 😊',1800);await sleep(600);await goSeat(ob);ob.errand=false});
+  return true;
+}
+async function obLoop(ob,delay){await nap(delay);for(;;){await nap(9000+Math.random()*12000);if(document.hidden||ob.errand||office.meeting)continue;
+  await act(ob,async()=>{if(ob.errand)return;const rooms=Object.values(ROOMS).filter(r=>r.key!=='staff'),r=rooms[Math.floor(Math.random()*rooms.length)];
+    ob.tool='mop';await goSpot(ob,r.key,randomSpot(r.key));
+    if(!ob.errand&&!document.hidden){say(ob,['🧹 Safai ho rahi hai','✨ Chamak gaya!','🧽 Saaf kar raha hoon'][Math.floor(Math.random()*3)],3200);await sleep(4500+Math.random()*3000)}
+    ob.tool=null;await goSeat(ob)})}}
+async function drinkLoop(){await nap(20000);for(;;){await nap(35000+Math.random()*40000);if(document.hidden||office.meeting)continue;
+  const cand=Object.values(P).filter(p=>p.seated&&!p.path.length&&!OBS.includes(p.key)&&!p.talking&&!/^tr\d+$/.test(p.key));if(!cand.length)continue;
+  const a=cand[Math.floor(Math.random()*cand.length)],item=['chai','paani','coffee','chai'][Math.floor(Math.random()*4)];
+  say(a,item==='paani'?'Office boy! Ek glass paani please 💧':item==='coffee'?'Office boy! Ek coffee please ☕':'Office boy! Ek cup chai please ☕',2600);await sleep(1500);orderDrink(a,item)}}
+
+/* ================= CLIENT HUNTING ================= */
+const CLIENT_TEAM=[['USA','cl1'],['UK','cl2'],['UAE','cl3'],['Pakistan','cl4']];
+const CITY={USA:'New York, Los Angeles, Houston, Miami, Chicago',UK:'London, Manchester, Birmingham, Leeds',UAE:'Dubai, Abu Dhabi, Sharjah',Pakistan:'Lahore, Karachi, Islamabad, Faisalabad'};
+function leadLink(t){const q=encodeURIComponent(t.searchQuery||t.segment||''),p=String(t.platform||'').toLowerCase();
+  return p.includes('map')?`https://www.google.com/maps/search/${q}`:p.includes('linkedin')?`https://www.linkedin.com/search/results/all/?keywords=${q}`:p.includes('facebook')?`https://www.facebook.com/search/groups/?q=${q}`:`https://www.google.com/search?q=${q}`}
+async function clientCall(a,country,bossTask){
+  if(isDemo()){await sleep(3000+Math.random()*2000);const c=CITY[country].split(', ');return{summary:`(demo) ${a.name} prepared ${country} lead targets.`,targets:[
+    {segment:`Amazon private label brand owners in ${c[0]}`,platform:'LinkedIn',searchQuery:`Amazon private label brand owner ${c[0]}`,whereToFind:'LinkedIn people search, filter by location',whyGoodFit:'Owners often need PPC and listing help',outreach:'Hi! We help Amazon brands grow with product research, listings and PPC. Want a free account audit?',questions:'Monthly revenue? Biggest problem? Who runs PPC now?'},
+    {segment:`E-commerce companies in ${c[1]||c[0]}`,platform:'Google Maps',searchQuery:`ecommerce company ${c[1]||c[0]}`,whereToFind:'Google Maps results that have a website',whyGoodFit:'Local sellers who could expand to Amazon',outreach:'We can take your products to Amazon end-to-end. Open to a 15-minute call?',questions:'Do you sell on Amazon yet? Which marketplace?'},
+    {segment:`Amazon seller groups (${country})`,platform:'Facebook',searchQuery:`Amazon FBA sellers ${country}`,whereToFind:'Facebook groups, recent posts asking for help',whyGoodFit:'Active sellers asking questions',outreach:'Sharing a free launch checklist. Happy to review one listing for free.',questions:'How many SKUs? Monthly ad spend?'}]}}
+  const raw=await askAI(sysFor(a),`The boss runs an e-commerce agency (ecommwithtaha) that sells Amazon private label services (product hunting, sourcing, listing optimization, PPC, account management) and eBay services.\nBoss's request: "${bossTask}"\nYour country: ${country}. Main cities: ${CITY[country]}.\n\nYou cannot browse Google Maps, LinkedIn or websites live. NEVER invent business names, people, emails, phone numbers or websites. Instead give precise LEAD TARGETS the boss's team can open and work through: who to target, the platform (Google Maps, LinkedIn, Google, Facebook or other), the exact search query to type (use real city names), where exactly to look, why they fit, a short personalised outreach message in English, and 2-3 qualifying questions.\nGive 5 targets mixing platforms.\nReply with ONLY JSON: {"summary":"one or two sentences","targets":[{"segment":"","platform":"","searchQuery":"","whereToFind":"","whyGoodFit":"","outreach":"","questions":""}]}`,0.8);
+  const j=parseJSON(raw);if(!j||!Array.isArray(j.targets))throw new Error('Did not get client targets from the AI.');return j;
+}
+let meetQueue=Promise.resolve();
+function meetManager(a,country,res){
+  const job=meetQueue.then(async()=>{const m=P.manager,inMeeting=office.meeting;a.hurry=m.hurry=true;
+    await act(a,async()=>{a.carry=true;say(a,`Boss, ${country} se leads mili hain!`,2600);await goVisit(a,m)});
+    say(m,'Achha! Meeting room mein baat karte hain',2400);await sleep(1400);
+    if(!inMeeting)await Promise.all([act(m,()=>goSpotVia(m,'meeting',MEET_SPOTS[0])),act(a,()=>goSpotVia(a,'meeting',MEET_SPOTS[3]))]);
+    const top=res.targets[0]||{};
+    for(const [p,t] of [[a,`${res.targets.length} lead targets. Best: ${top.segment||'-'}`],[m,'Zabardast! Pitch kya hoga?'],[a,String(top.outreach||'Free audit offer karenge').slice(0,80)],[m,'Theek hai. Ye data lo, PDF bana do meri stamp ke saath']]){say(p,t,2800);await sleep(2900)}
+    m.carry='gold';await sleep(700);m.carry=false;a.carry='gold';say(a,'Ji boss!',1500);
+    await Promise.all([act(m,()=>goSeat(m)),act(a,()=>goSeat(a))]);a.hurry=m.hurry=false;
+  });
+  meetQueue=job.catch(()=>{});return job;
+}
+async function clientsPipeline(bossTask){
+  const team=CLIENT_TEAM.map(([c,k])=>[c,P[k]]);team.forEach(([,p])=>p.job=true);
+  try{
+    const out=await Promise.all(team.map(async([country,a])=>{
+      let res;try{res=await busyWork(a,'Finding clients',()=>clientCall(a,country,bossTask))}catch(e){log(a.name,helpFor(e),null,true);say(a,'Problem! See log',4000);return null}
+      res.targets=res.targets.map(t=>({...t,country,link:leadLink(t)}));
+      log(a.name,`${country}: ${res.summary}\n`+res.targets.map(t=>`• ${t.segment} (${t.platform})`).join('\n'),a.shirt);
+      addRows('clients',res.targets.map(t=>({date:today(),agent:a.name,...t})));
+      if(res.targets.length){
+        await meetManager(a,country,res);
+        await busyWork(a,'Making PDF',async()=>{await sleep(1500);try{const nm=`ecommwithtaha-clients-${country.toLowerCase()}-${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.pdf`;
+          logPdf(await makePdf({task:`Client hunting (${country}): ${bossTask}`,date:new Date().toLocaleString(),summary:`${a.name} found ${res.targets.length} lead targets in ${country}. ${res.summary}`,results:[{kind:'clients',country,agent:a.name,targets:res.targets}]}),nm)}catch(e){log('System','PDF: '+e.message,null,true)}});
+        a.carry=false;say(a,'PDF ready ✓',2200);
+      }
+      return{country,agent:a.name,summary:res.summary,targets:res.targets};
+    }));
+    const ok=out.filter(Boolean);showTab('clients');
+    return{kind:'clients',who:'Client Hunting Department',summary:ok.map(o=>`${o.country}: ${o.targets.length} lead targets`).join(', ')||'No targets found.',countries:ok};
+  }finally{team.forEach(([,p])=>{p.job=false;p.typing=false;p.carry=false})}
+}
+PIPES.clients=clientsPipeline;
+
+/* ================= PPC campaign builder + listing images ================= */
+async function ppcCampaignCall(z,bossTask,plan,asin){
+  if(isDemo()){await sleep(2500);return{campaigns:[{name:'SP - Auto - Discovery',type:'Sponsored Products Auto',budget:'$15/day',notes:'Harvest converting search terms weekly'},{name:'SP - Exact - Core',type:'SP Manual Exact',budget:'$20/day',notes:'Top keywords, raise bids on winners'},{name:'SP - Phrase - Growth',type:'SP Manual Phrase',budget:'$10/day',notes:'Mid-priority keywords'}],negatives:'free, cheap, used, diy',plan:'Week 1: launch. Week 2: cut non-converting terms. Week 3: move winners to exact. Week 4: scale budgets on winners.'}}
+  const raw=await askAI(sysFor(z),`Boss's request: "${bossTask}"\nASIN: ${asin||'(not given)'}\nKeywords from ${P.ppc.name}:\n${JSON.stringify(plan.keywords).slice(0,5000)}\n\nBuild the campaign structure: campaigns (name, type, daily budget, notes on which keywords and bids), negative keywords and a clear 4-week launch and optimization plan. Estimates only.\nReply with ONLY JSON: {"campaigns":[{"name":"","type":"","budget":"","notes":""}],"negatives":"","plan":""}`);
+  const j=parseJSON(raw);if(!j||!Array.isArray(j.campaigns))throw new Error('Did not get campaigns from the AI.');return j;
+}
+async function listingImagesCall(an,bossTask,listings){
+  if(isDemo()){await sleep(2600);return{items:listings.map(()=>({images:'1) Main white background 2) Key benefits infographic 3) Size chart 4) In use lifestyle 5) Before/after 6) What is in the box 7) Trust and guarantee',aplus:'Module 1: brand story banner | Module 2: 3 benefit tiles | Module 3: comparison chart | Module 4: how-to-use steps'}))}}
+  const raw=await askAI(sysFor(an)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nListings written by ${P.listing.name}:\n${JSON.stringify(listings.map(l=>({product:l.product,title:l.title,bullets:l.bullets}))).slice(0,5000)}\n\nFor each listing (same order) create a 7-image plan (main image rules, infographics, lifestyle, size, box contents) and an A+ content plan (4-5 modules with what each shows).\nReply with ONLY JSON: {"items":[{"images":"1) ... 2) ...","aplus":"Module 1: ... | Module 2: ..."}]}`);
+  const j=parseJSON(raw);if(!j||!Array.isArray(j.items))throw new Error('Did not get the image plan from the AI.');return j;
 }
 
 /* ================= WORKFLOWS ================= */
@@ -799,23 +1213,31 @@ async function amazonPipeline(bossTask){
     lead.typing=true;lead.workText='Choosing finals';
     let fin;try{fin=await finalCall(lead,bossTask,pool)}finally{lead.typing=false}
     log(lead.name+' – FINAL LIST',fin.summary+'\n'+fin.products.map(x=>`★ ${x.rank}. ${x.name} – ${x.price}, net ${x.netProfit}, ROI ${x.roi}`).join('\n'),'#ffd166');
+    let sres={suppliers:[]};
     if(fin.products.length){
       const rows=fin.products.map(x=>({date:date(),market,...x,...links(market,x.keyword||x.name)}));
-      await deliverToRecords(lead,'final',[['final',rows],['findings',rows.map(x=>({date:x.date,task:bossTask,dept:'Amazon Advance Hunting',agent:lead.name,title:`#${x.rank} ${x.name}`,details:`${x.price} · net ${x.netProfit} · ROI ${x.roi}. ${x.whyWinner||''}`,link:x.amazonLink}))]],'Final products! Please file');
+      const src=P.amzsrc;src.job=true;
+      try{
+        await handOver(lead,src,`${src.name}, final list ready. Suppliers dhoondo!`,true);
+        sres=await busyWork(src,'Finding suppliers',()=>amzSourcingCall(src,bossTask,fin.products,market)).catch(e=>{log(src.name,helpFor(e),null,true);return{summary:'Sourcing could not finish.',suppliers:[]}});
+        log(src.name,(sres.summary||'')+'\n'+sres.suppliers.map(x=>`• ${x.name}: ${x.supplierType}, target ${x.targetPrice}, MOQ ${x.moq}`).join('\n'),src.shirt);
+        const srows=sres.suppliers.map(x=>({date:date(),...x,alibabaLink:links(market,x.searchTerms||x.name).supplierLink}));
+        await deliverToRecords(src,'final',[['final',rows],['sourcing',srows],['findings',rows.map(x=>({date:x.date,task:bossTask,dept:'Amazon Advance Hunting',agent:lead.name,title:`#${x.rank} ${x.name}`,details:`${x.price} · net ${x.netProfit} · ROI ${x.roi}. ${x.whyWinner||''}`,link:x.amazonLink}))]],'Final products + suppliers. Please file');
+      }finally{src.job=false}
       showTab('final');
     }
-    return{who:'Amazon Hunting + Advance Hunting',summary:fin.summary,products:fin.products};
+    return{kind:'amazon',who:'Amazon Hunting + Advance Hunting + Sourcing',summary:fin.summary,products:fin.products,suppliers:sres.suppliers,market};
   }finally{[...Hs,...As].forEach(p=>{p.job=false;p.typing=false})}
 }
 async function workerJob(w,subtask,bossTask,deps,needKeys){
   w.job=true;
   try{
     await act(w,()=>goSeat(w));let ctx='';
-    if(deps.length){say(w,'Waiting for '+needKeys.map(k=>k==='amazon'?'Amazon depts':P[k].name).join(' & '),9e8);const rs=await Promise.all(deps);w.bubble=null;
-      ctx=rs.filter(Boolean).map(r=>`[${r.who}]: ${r.summary}\n`+(r.products||r.items||[]).map(x=>'- '+(x.name||x.title)+': '+(x.details||[x.price,x.netProfit,x.whyWinner].filter(Boolean).join(', '))).join('\n')).join('\n\n').slice(0,4500)}
+    if(deps.length){say(w,'Waiting for '+needKeys.map(k=>PIPES[k]?deptLabel(k).split(' →')[0]:P[k].name).join(' & '),9e8);const rs=await Promise.all(deps);w.bubble=null;
+      ctx=rs.filter(Boolean).map(r=>`[${r.who}]: ${r.summary}\n`+(r.products||r.listings||r.items||[]).map(x=>'- '+(x.name||x.title||x.product)+': '+(x.details||[x.price,x.netProfit,x.whyWinner,x.profit].filter(Boolean).join(', '))).join('\n')).join('\n\n').slice(0,4500)}
     w.typing=true;w.workText='Working';let r;
     try{r=await workerCall(w,subtask,bossTask,ctx)}catch(e){w.typing=false;log(w.name,helpFor(e),null,true);say(w,'Problem! See log',4000);return{who:w.name,summary:'Could not finish: '+e.message,items:[]}}
-    w.typing=false;r.who=`${w.name} (${ROOMS[w.cabRef.room].name})`;
+    w.typing=false;r.who=`${w.name} (${ROOMS[w.cabRef.room].name})`;r.kind='worker';
     log(w.name,r.summary+'\n'+(r.items||[]).slice(0,8).map(x=>'• '+x.title).join('\n'),w.shirt);
     const date=new Date().toLocaleString();
     await deliverToRecords(w,'findings',[['findings',(r.items||[]).map(x=>({date,task:bossTask,dept:ROOMS[w.cabRef.room].name,agent:w.name,title:x.title||'',details:x.details||'',link:/^https?:\/\//.test(x.link||'')?x.link:''}))]]);
@@ -840,19 +1262,20 @@ async function runTask(task,whoKey,mode){
         const w=deptPerson(a.dept);
         await act(m,async()=>{m.carry=true;say(m,'Going to '+deptLabel(a.dept).split(' →')[0],2000);await goVisit(m,w);say(m,`${w.name}, this one is for your team`,2000);await sleep(1300);m.carry=false;say(w,'On it, sir!',1800);await sleep(700)});
         const deps=a.needs.map(k=>jobs[k]).filter(Boolean);
-        jobs[a.dept]=a.dept==='amazon'?(async()=>{await Promise.all(deps);return amazonPipeline(task)})():workerJob(w,a.task,task,deps,a.needs);
+        jobs[a.dept]=PIPES[a.dept]?(async()=>{await Promise.all(deps);return PIPES[a.dept](a.dept==='ppc'||a.dept==='listing'?a.task+' (boss said: '+task+')':task)})():workerJob(w,a.task,task,deps,a.needs);
       }
       act(m,()=>goSeat(m));
       results=await Promise.all(Object.values(jobs));
-    }else if(whoKey==='amazon'){
-      say(P.hunt1,'On it! Team, start hunting',2000);results=[await amazonPipeline(task)];
+    }else if(PIPES[whoKey]){
+      say(deptPerson(whoKey),'On it! Team, start karo',2000);results=[await PIPES[whoKey](task)];
     }else{const w=P[whoKey];say(w,'On it!',1500);results=[await workerJob(w,task,task,[],[])]}
     const m=P.manager;await act(m,()=>goSeat(m));
     m.typing=true;m.workText='Writing your report';let fin;try{fin=await managerFinal(task,results,mode)}finally{m.typing=false}
     log(m.name+' – report to boss',fin.reply,'#ffe066');say(m,PH.done[mode],4000);speak(fin.reply,m,mode,fin.speech);
+    if(!results.every(r=>r&&r.kind==='clients'))try{const nm=`ecommwithtaha-report-${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.pdf`;logPdf(await makePdf({task,date:new Date().toLocaleString(),summary:fin.reply,results}),nm)}catch(e){log('System','PDF: '+e.message,null,true)}
     if(S.autoMemory&&!isDemo()){S.memory=(S.memory+`\n- ${new Date().toLocaleDateString()}: did "${task.slice(0,80)}"`).trim();save()}
   }catch(e){log('System',helpFor(e),null,true)}
-  finally{running=office.busy=false;releaseWake();$('runBtn').disabled=false;Object.values(P).forEach(p=>{p.typing=false;if(p.bubble&&p.bubble.text.startsWith('Waiting'))p.bubble=null})}
+  finally{running=office.busy=false;releaseWake();try{growTalent(2,5)}catch(e){}$('runBtn').disabled=false;Object.values(P).forEach(p=>{p.typing=false;if(p.bubble&&p.bubble.text.startsWith('Waiting'))p.bubble=null})}
 }
 $('runBtn').onclick=()=>handleInput($('task').value,$('who').value);
 $('meetBtn').onclick=()=>office.meeting?endMeeting(curMode):callMeeting(curMode);
@@ -984,8 +1407,8 @@ async function callMeeting(mode){
   if(office.meeting){say(P.manager,PH.ready[mode],3000);return}
   office.meeting=true;$('meetBtn').textContent='✕ End meeting';log('You','Meeting!','#e8f4ff');
   const m=P.manager;say(m,PH.call[mode],3000);speak(PH.call[mode],m,mode,PH.call.hi);
-  const order=[m,...Object.values(P).filter(p=>p!==m)];
-  await Promise.all(order.map((p,i)=>act(p,async()=>{if(!office.meeting)return;await sleep(150*i);p.hurry=true;try{if(office.meeting)await goSpotVia(p,'meeting',MEET_SPOTS[i])}finally{p.hurry=false}})));
+  const order=[m,...Object.values(P).filter(p=>p!==m&&!OBS.includes(p.key))];
+  await Promise.all(order.map((p,i)=>act(p,async()=>{if(!office.meeting)return;await sleep(150*i);p.hurry=true;try{if(office.meeting)await goSpotVia(p,'meeting',MEET_SPOTS[Math.min(i,MEET_SPOTS.length-1)])}finally{p.hurry=false}})));
   if(!office.meeting)return;
   log(m.name,PH.ready[mode],m.shirt);say(m,PH.ready[mode],4500);speak(PH.ready[mode],m,mode,PH.ready.hi);
 }
@@ -1025,7 +1448,11 @@ async function handleInput(t,whoKey){
   t=(t||'').trim();if(!t)return;const mode=langMode(t);curMode=mode;
   if(isMeetEnd(t))return endMeeting(mode);
   if(isMeetCall(t)&&t.split(/\s+/).length<=8)return callMeeting(mode);
-  const named=findPeople(t),others=named.filter(p=>p.key!=='manager'),target=others[0]||named[0]||null;
+  const drink=t.match(/chai|tea|paani|pani|water|coffee|کافی|چائے|پانی|चाय|पानी|कॉफी/i);
+  if(drink&&/office ?boy|lao|lana|le aa|bring|लाओ|لاؤ/i.test(t)){const it=/coffee|کافی|कॉफी/i.test(drink[0])?'coffee':/paani|pani|water|پانی|पानी/i.test(drink[0])?'paani':'chai';log('You',t,'#e8f4ff');
+    const m=P.manager,line=mode==='en'?`Office boy, please bring ${it==='paani'?'water':it} for the boss!`:`Office boy, boss ke liye ${it} le aao!`;say(m,line,2500);
+    if(!(await orderDrink(m,it)))say(m,mode==='en'?'All office boys are busy, one moment.':'Sab office boys busy hain, thora intezar.',2500);return}
+  const named=findPeople(t).filter(p=>!OBS.includes(p.key)),others=named.filter(p=>p.key!=='manager'),target=others[0]||named[0]||null;
   const via=named.some(p=>p.key==='manager')&&others.length?P.manager:null;
   if(office.meeting&&(!TASKY.test(t)||others.length))return askPerson(target||P.manager,t,mode,via);
   if(target&&(others.length||!TASKY.test(t))&&!running)return askPerson(target,t,mode,via);
@@ -1035,7 +1462,7 @@ async function handleInput(t,whoKey){
 /* ================= START ================= */
 buildBG();renderWho();renderRoster();renderSheet();
 document.fonts?.ready.then(()=>{buildBG();drawWires()});setTimeout(drawWires,300);
-Object.values(P).forEach(p=>idleLoop(p));cafeLoop(8000);cafeLoop(20000);
+PEOPLE0.filter(d=>!OBS.includes(d.key)).forEach(d=>idleLoop(P[d.key]));cafeLoop(8000);cafeLoop(20000);academyLoop();OBS.forEach((k,i)=>obLoop(P[k],4000+i*2500));drinkLoop();
 if(window.speechSynthesis)speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices();
 requestAnimationFrame(tick);
 </script>
