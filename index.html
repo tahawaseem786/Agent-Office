@@ -35,6 +35,7 @@ h2{font-size:13px;color:var(--cyan)} h3{font-size:12px;color:var(--yellow)}
 .chip.working{border-color:var(--orange)} .chip.working small{color:var(--orange)}
 .chip.walking small{color:var(--cyan)}
 .chip.sel{outline:1px solid var(--cyan)}
+.depts{display:flex;flex-wrap:wrap;gap:5px}.dchip{font-size:11px;border-left:3px solid var(--a);background:#0008;padding:3px 8px;border-radius:6px;color:var(--white)}.dchip b{color:var(--a);font-weight:600}
 .cv{border-radius:12px;border:1px solid var(--line);overflow:hidden;background:#05090f}
 #office{display:block;width:100%;cursor:pointer}
 .cv{position:relative}
@@ -112,6 +113,7 @@ dialog::backdrop{background:#000b}
   <div class="col">
     <section class="card office">
       <div class="ohead"><h2>AI Agent Office</h2><div class="roster" id="roster"></div></div>
+      <div class="depts" id="depts"></div>
       <div class="cv"><canvas id="office"></canvas></div>
     </section>
     <section class="card sheet">
@@ -127,7 +129,7 @@ dialog::backdrop{background:#000b}
           <button data-s="clients">Client leads</button>
           <button data-s="findings">Other findings</button>
         </div>
-        <div class="sp"><button class="btn ghost sm" id="xlsBtn">⬇ Download PDF</button><button class="btn ghost sm" id="sendAll">📤 Send all emails</button><button class="btn ghost sm" id="clrSheet">Clear</button></div>
+        <div class="sp"><button class="btn ghost sm" id="xlsxBtn">⬇ Excel</button><button class="btn ghost sm" id="xlsBtn">⬇ PDF</button><button class="btn ghost sm" id="sendAll">📤 Send all emails</button><button class="btn ghost sm" id="clrSheet">Clear</button></div>
       </div>
       <div class="twrap"><table id="sheetT"></table></div>
     </section>
@@ -173,7 +175,7 @@ dialog::backdrop{background:#000b}
       <div class="row">
         <button class="btn" id="runBtn" style="flex:1">Send task</button>
         <button class="btn ghost" id="teamBtn">Team</button>
-        <button class="btn ghost" id="amzBtn">🛠 Hunting tool</button>
+        <button class="btn ghost" id="amzBtn">📋 Criteria</button>
       </div>
       <div class="row">
         <button class="btn ghost" id="meetBtn" style="flex:1">📋 Call meeting</button>
@@ -699,6 +701,8 @@ const DEPT_LABEL={amazon:'Amazon Hunting → Advance → Sourcing',ppc:'PPC Plan
 const deptLabel=k=>DEPT_LABEL[k]||(ROOMS[k]?ROOMS[k].name:k);
 const deptPerson=k=>({amazon:P.hunt1,ebay:P.ebay1,ppc:P.ppc,listing:P.listing,clients:P.cl1})[k]||P[k];
 function statusOf(p){if(p.typing)return['working','Working'];if(p.path.length)return['walking','Walking'];if(p.bubble&&p.bubble.text.startsWith('Waiting')&&performance.now()<p.bubble.until)return['','Waiting'];return['',p.seated?'At desk':'Around']}
+function renderDepts(){const g={};Object.values(P).filter(p=>!p.visitor).forEach(p=>{const k=p.cabRef.room;(g[k]=g[k]||[]).push(p)});
+  $('depts').innerHTML=DEPTS.filter(d=>g[d.key]).map(d=>`<div class="dchip" style="--a:${d.accent}"><b>${esc(d.name)}:</b> ${g[d.key].map(p=>esc(p.name)).join(', ')}</div>`).join('')}
 function renderRoster(){$('roster').innerHTML=Object.values(P).filter(p=>!p.visitor).map(p=>{const[c,s]=statusOf(p);return `<div class="chip ${c} ${selected===p.key?'sel':''}" data-k="${p.key}" title="${esc(ROOMS[p.room===p.cabRef.room?p.cabRef.room:p.cabRef.room].name+': '+p.role)}"><i style="background:${p.shirt}"></i>${esc(p.name)} <small>${s}</small></div>`}).join('')}
 $('roster').onclick=e=>{const c=e.target.closest('.chip');if(c)pick(c.dataset.k)};
 function pick(k){if(k==='records'||k==='trainer'||/^tr\d+$/.test(k)||/^ob\d$/.test(k))return;const grp={lst0:'listing',ppc3:'ppc',src2:'amazon',src3:'amazon',listing2:'listing',ppc2:'ppc',ppca1:'ppc',ppca2:'ppc',lsa1:'listing',lsa2:'listing',recep:'manager',cl1:'clients',cl2:'clients',cl3:'clients',cl4:'clients',hunt1:'amazon',hunt2:'amazon',hunt3:'amazon',adv1:'amazon',adv2:'amazon',adv3:'amazon',amzsrc:'amazon',ebay1:'ebay',ebay2:'ebay',ebay3:'ebay',ebay4:'ebay',ebaysrc:'ebay'};selected=k;$('who').value=grp[k]||k;renderRoster()}
@@ -717,7 +721,7 @@ const COLS={
   hunted:[['date','Date'],['hunter','Hunter'],['market','Market'],['name','Product'],['keyword','Keyword'],['price','Price'],['monthlySales','Sales / month'],['topReviews','Top reviews'],['competition','Competition'],['unitCost','Unit cost'],['margin','Est. profit'],['weight','Weight'],['score','Score'],['whyGood','Why good'],['amazonLink','Amazon']],
   findings:[['date','Date'],['task','Boss task'],['dept','Department'],['agent','Agent'],['title','Title'],['details','Details'],['link','Link']]
 };
-COLS.sourcing=[['date','Date'],['name','Product'],['supplierType','Supplier type'],['searchTerms','Search terms'],['filters','Must-have filters'],['targetPrice','Target unit price'],['moq','MOQ'],['landedCost','Landed cost'],['fobPrice','FOB'],['shipping','Shipping'],['duties','Duties'],['moqStrategy','MOQ strategy'],['negotiation','Negotiation'],['compliance','Compliance'],['samples','Samples'],['inspection','Inspection'],['fbaPrep','FBA prep'],['sampleCost','Sample cost'],['certifications','Certifications'],['questions','Ask the supplier'],['redFlags','Red flags'],['alibabaLink','Alibaba search']];
+COLS.sourcing=[['date','Date'],['name','Product'],['bestSupplier','Best supplier'],['bestLink','Supplier link'],['supplierType','Supplier type'],['searchTerms','Search terms'],['filters','Must-have filters'],['targetPrice','Target unit price'],['moq','MOQ'],['landedCost','Landed cost'],['fobPrice','FOB'],['shipping','Shipping'],['duties','Duties'],['moqStrategy','MOQ strategy'],['negotiation','Negotiation'],['compliance','Compliance'],['samples','Samples'],['inspection','Inspection'],['fbaPrep','FBA prep'],['sampleCost','Sample cost'],['certifications','Certifications'],['questions','Ask the supplier'],['redFlags','Red flags'],['alibabaLink','Alibaba search']];
 COLS.ebay=[['date','Date'],['hunter','Hunter'],['name','Product'],['soldPrice','Sold price'],['sellThrough','Sell-through'],['supplierPlatform','Supplier'],['supplierCost','Supplier cost'],['shippingDays','Shipping'],['ebayFees','eBay fees'],['profit','Profit'],['verdict','Verdict'],['title','eBay title (SEO)'],['specifics','Item specifics'],['images','Image plan'],['description','Description'],['soldLink','eBay sold search'],['supplierLink','Supplier search']];
 COLS.ppc=[['date','Date'],['asin','ASIN'],['product','Product'],['type','Type'],['item','Keyword / campaign'],['match','Match'],['priority','Priority'],['bid','Bid / budget'],['details','Details']];
 COLS.listing=[['date','Date'],['product','Product'],['title','Title'],['bullets','Bullets'],['description','Description'],['backend','Backend keywords'],['images','Image plan'],['aplus','A+ content']];
@@ -742,6 +746,7 @@ $('xlsBtn').onclick=async()=>{
   try{const id=reportId('sheet'),blob=await makePdf({task:'Records sheet: '+SHEET_NAMES[sheetTab],date:new Date().toLocaleString(),summary:`${rows.length} rows from the ${SHEET_NAMES[sheetTab]} tab.`,results:[{kind:'table',title:SHEET_NAMES[sheetTab],cols:COLS[sheetTab],rows}],theme:{...THEMES.general,title:'RECORDS SHEET',dept:'Records & Sheets - '+SHEET_NAMES[sheetTab],agentsText:P.records.name+' (records clerk)',id}});
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`ecommwithtaha-${sheetTab}-${id}.pdf`;document.body.appendChild(a);a.click();a.remove()}catch(e){log('System','PDF: '+e.message,null,true)}
 };
+$('xlsxBtn').onclick=exportExcel;
 $('sendAll').onclick=()=>{if(!ejOk()){openEmailSetup();return}showTab('clients');sendAllLeads()};
 $('clrSheet').onclick=()=>{if(confirm('Clear all rows in every sheet tab?')){S.sheet=structuredClone(DEFAULT.sheet);save();renderSheet()}};
 
@@ -749,7 +754,7 @@ $('clrSheet').onclick=()=>{if(confirm('Clear all rows in every sheet tab?')){S.s
 let onSave=null;
 function openEditor(k){
   const B=$('dlgBody');$('dlgSave').textContent='Save';
-  $('dlgTitle').textContent={memory:'Memory',skills:'Skills',soul:'Soul',settings:'Settings',team:'Team',amazon:'Amazon criteria',academy:'Training Academy'}[k];onSave=null;
+  $('dlgTitle').textContent={memory:'Memory',skills:'Skills',soul:'Soul',settings:'Settings',team:'Team',amazon:'Amazon criteria',academy:'Training Academy'}[k];onSave=null;if(k==='amazon')$('dlgTitle').textContent='Criteria';
   if(k==='memory'){B.innerHTML=`<p class="note">Facts every agent always knows: your business, products, audience, budget, language.</p><textarea id="f" rows="10">${esc(S.memory)}</textarea><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="am" style="width:auto" ${S.autoMemory?'checked':''}> Add a short note after each finished task</label>`;onSave=()=>{S.memory=$('f').value;S.autoMemory=$('am').checked}}
   if(k==='skills'){B.innerHTML=`<p class="note">What the team is good at. One skill per line.</p><textarea id="f" rows="10">${esc(S.skills)}</textarea>`;onSave=()=>{S.skills=$('f').value}}
   if(k==='soul'){B.innerHTML=`<p class="note">Personality and rules everyone follows.</p><textarea id="f" rows="8">${esc(S.soul)}</textarea>`;onSave=()=>{S.soul=$('f').value}}
@@ -765,19 +770,28 @@ function openEditor(k){
       if(online&&old!==JSON.stringify([S.settings.provider,S.settings.base,S.settings.model,S.settings.key]))setOnline(false)}}
   if(k==='team'){
     B.innerHTML=`<p class="note">Rename people, describe their jobs, and set each person’s ONE skill (second line). Agents refuse anything outside their skill and point you to the right colleague.</p>`+Object.values(P).map(p=>`<div class="trow"><span>${ROOMS[p.cabRef.room].name}${p.cabRef.room==='hunt'||p.cabRef.room==='adv'?' · Cabin '+(p.cabRef.i+1):''}</span><input type="color" id="c_${p.key}" value="${p.shirt}" aria-label="Shirt colour"><input id="n_${p.key}" value="${esc(p.name)}" aria-label="Name"><input id="r_${p.key}" value="${esc(p.role)}" aria-label="Job"><input id="s_${p.key}" value="${esc(p.skill)}" aria-label="Only skill" style="grid-column:2/-1" placeholder="Only skill"></div>`).join('');
-    onSave=()=>{Object.values(P).forEach(p=>{p.name=$('n_'+p.key).value.trim()||p.name;p.role=$('r_'+p.key).value.trim()||p.role;p.shirt=$('c_'+p.key).value;p.skill=$('s_'+p.key).value.trim()||p.skill;S.people[p.key]={name:p.name,role:p.role,shirt:p.shirt,skill:p.skill}});renderWho()}}
+    onSave=()=>{Object.values(P).forEach(p=>{p.name=$('n_'+p.key).value.trim()||p.name;p.role=$('r_'+p.key).value.trim()||p.role;p.shirt=$('c_'+p.key).value;p.skill=$('s_'+p.key).value.trim()||p.skill;S.people[p.key]={name:p.name,role:p.role,shirt:p.shirt,skill:p.skill}});renderWho();renderDepts()}}
   if(k==='amazon'){const c=S.criteria;
-    B.innerHTML=`<p class="note">Used by both Amazon departments. Anything you say in the task (like "UK, 15 to 30 pound") overrides these.</p>
+    B.innerHTML=`<h3>Amazon hunting criteria</h3><p class="note">Used by the Hunting and Advance departments. Anything you say in a task (like "UK, 15 to 30 pound") overrides these. Scroll down for supplier criteria.</p>
     <div class="two"><div><label>Marketplace</label><select id="cm">${Object.keys(MARKETS).map(m=>`<option ${c.market===m?'selected':''}>${m}</option>`).join('')}</select></div><div><label>Category</label><input id="cc" value="${esc(c.category)}"></div></div>
     <div class="two"><div><label>Min price</label><input id="cp1" type="number" value="${c.priceMin}"></div><div><label>Max price</label><input id="cp2" type="number" value="${c.priceMax}"></div></div>
     <div class="two"><div><label>Top sellers have fewer than (reviews)</label><input id="cr" type="number" value="${c.maxReviews}"></div><div><label>Min sales per month</label><input id="cs" type="number" value="${c.minSales}"></div></div>
     <div class="two"><div><label>Max weight</label><input id="cw" value="${esc(c.maxWeight)}"></div><div><label>Starting budget</label><input id="cb" value="${esc(c.budget)}"></div></div>
     <div class="two"><div><label>Products each hunter finds</label><input id="ph" type="number" min="2" max="8" value="${c.perHunter}"></div><div><label>Products in Final list</label><input id="fc" type="number" min="1" max="10" value="${c.finalCount}"></div></div>
     <div><label>Advanced test: minimum net margin after ads (%)</label><input id="mm" type="number" min="5" max="60" value="${c.minMargin}"></div>
-    <div><label>Other rules</label><textarea id="co" rows="3">${esc(c.notes)}</textarea></div>`;
-    $('dlgSave').textContent='Save & start hunting';
+    <div><label>Other rules</label><textarea id="co" rows="3">${esc(c.notes)}</textarea></div>
+    <h3 style="margin-top:8px">Supplier criteria</h3><p class="note">Used by the Amazon Sourcing Department (Noman, Farhan, Mehwish) when they look for suppliers for your final products.</p>
+    ${(()=>{const u=S.supplier||{};return `<div class="two"><div><label>Supplier type</label><select id="su_type"><option ${u.type!=='Any'?'selected':''}>Manufacturer only</option><option ${u.type==='Any'?'selected':''}>Any</option></select></div><div><label>Platforms</label><input id="su_plat" value="${esc(u.platforms||'Alibaba, Made-in-China, 1688')}"></div></div>
+    <div class="toggles"><label><input type="checkbox" id="su_ver" ${u.verified!==false?'checked':''}> Verified Supplier only</label><label><input type="checkbox" id="su_ta" ${u.ta!==false?'checked':''}> Trade Assurance</label></div>
+    <div class="two"><div><label>Min years on platform</label><input id="su_yr" type="number" value="${u.years||3}"></div><div><label>Min rating (out of 5)</label><input id="su_rt" type="number" step="0.1" value="${u.rating||4.5}"></div></div>
+    <div class="two"><div><label>Max MOQ (pieces)</label><input id="su_moq" type="number" value="${u.moq||500}"></div><div><label>Max landed cost (% of selling price)</label><input id="su_lc" type="number" value="${u.landed||30}"></div></div>
+    <div class="two"><div><label>Preferred regions</label><input id="su_reg" value="${esc(u.regions||'Guangdong, Zhejiang')}"></div><div><label>Sample budget</label><input id="su_sb" value="${esc(u.sample||'$100')}"></div></div>
+    <div><label>Must have (certifications, custom logo, packaging, payment terms)</label><textarea id="su_must" rows="2">${esc(u.must||'Custom logo and packaging, samples before order, 30/70 payment via Trade Assurance')}</textarea></div>
+    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="su_go" style="width:auto"> Start product hunting after saving</label>`})()}`;
+    $('dlgSave').textContent='Save criteria';
     onSave=()=>{S.criteria={market:$('cm').value,category:$('cc').value,priceMin:+$('cp1').value,priceMax:+$('cp2').value,maxReviews:+$('cr').value,minSales:+$('cs').value,maxWeight:$('cw').value,budget:$('cb').value,perHunter:+$('ph').value||4,finalCount:+$('fc').value||5,minMargin:+$('mm').value||25,notes:$('co').value};
-      setTimeout(()=>runTask(`Find Amazon ${S.criteria.market} private label products using my saved criteria`,'amazon',curMode),60)}}
+      S.supplier={type:$('su_type').value==='Any'?'Any':'Manufacturer',platforms:$('su_plat').value,verified:$('su_ver').checked,ta:$('su_ta').checked,years:+$('su_yr').value||0,rating:+$('su_rt').value||0,moq:+$('su_moq').value||0,landed:+$('su_lc').value||0,regions:$('su_reg').value,sample:$('su_sb').value,must:$('su_must').value};
+      if($('su_go').checked)setTimeout(()=>runTask(`Find Amazon ${S.criteria.market} private label products using my saved criteria`,'amazon',curMode),60)}}
   if(k==='academy'){const A=S.academy,depts=['amazon','ppc','listing','clients','research','content','review'];
     B.innerHTML=`<p class="note">${esc(P.trainer.name)} trains new agents. Talent grows over time and after every task. Hire the talented ones (85%+ is best) into a team. New-hire desks in the Academy: ${2-A.hires.length} free.</p>`+
       A.trainees.map(t=>`<div class="acad"><b>${esc(t.name)}</b><div class="tal"><i style="width:${Math.round(t.talent)}%"></i></div><select id="hd_${t.id}" aria-label="Department">${depts.map(d=>`<option value="${d}">${esc(deptLabel(d))}</option>`).join('')}</select><button class="btn sm" data-hire="${t.id}">Hire · ${Math.round(t.talent)}%</button></div>`).join('')+
@@ -867,7 +881,7 @@ async function workerCall(p,task,bossTask,ctx){
 }
 async function managerFinal(task,results,mode){
   if(isDemo()){await sleep(1500);return{reply:PH.done[mode]+' '+({en:'(demo) Everything is saved in the Records sheet.',roman:'(demo) Sab kuch Records sheet mein save hai.',urdu:'(ڈیمو) سب کچھ ریکارڈز شیٹ میں محفوظ ہے۔'})[mode],speech:PH.done.hi+' सब कुछ रिकॉर्ड्स शीट में सेव है।'}}
-  const rep=results.map(r=>`[${r.who}]: ${r.summary}\n`+(r.products||r.listings||r.items||(r.plan?r.plan.keywords:[])||[]).slice(0,10).map(x=>'- '+(x.name||x.title||x.product||x.keyword)+': '+String(x.whyWinner||x.details||x.profit||x.match||'').slice(0,200)).join('\n')).join('\n\n').slice(0,6000);
+  const rep=results.map(r=>`[${r.who}]: ${r.summary}\n`+(r&&r.decision?`MANAGER DECISION (tell the boss this first): go with ${r.decision.pick}. ${r.decision.reason}\n`:'')+(r.products||r.listings||r.items||(r.plan?r.plan.keywords:[])||[]).slice(0,10).map(x=>'- '+(x.name||x.title||x.product||x.keyword)+': '+String(x.whyWinner||x.details||x.profit||x.match||'').slice(0,200)).join('\n')).join('\n\n').slice(0,6000);
   const raw=await askAI(sysFor(P.manager),`Boss's task: "${task}"\n\nReports from your team:\n${rep}\n\nYou are reporting back to your boss in person. Start with "${PH.done[mode]}" then give the key results and one clear next step, at most 120 words, warm and natural like a real manager speaking. Mention full details are in the Records sheet. ${langInstr(mode)}\nReply with ONLY JSON: {"reply":"...","speech":"..."} where ${speechInstr(mode)}`);
   const j=parseJSON(raw);return j&&j.reply?j:{reply:raw,speech:''};
 }
@@ -892,7 +906,7 @@ async function busyWork(p,text,fn){await act(p,()=>goSeat(p));p.typing=true;p.wo
 /* ---- Amazon sourcing ---- */
 async function amzSourcingCall(src,bossTask,products,market){
   if(isDemo()){await sleep(3000);return{summary:`(demo) ${src.name} prepared supplier searches for ${products.length} products.`,suppliers:products.map(p=>({name:p.name,supplierType:'Manufacturer (not a trading company)',searchTerms:p.keyword||p.name,filters:'Verified Supplier + Trade Assurance + 3+ years + 4.5 stars + 90% response',targetPrice:'$2.00-$3.50 FOB',moq:'300-500 pcs',sampleCost:'$30-$60 incl. shipping',certifications:'Check category rules for Amazon '+market,questions:'Custom logo? Custom packaging? Lead time? Defect rate? Can you share a factory video?',redFlags:'Price far below others, no factory video, refuses Trade Assurance'}))}}
-  const raw=await askAI(sysFor(src)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nMarketplace: Amazon ${market}. Budget: ${S.criteria.budget}.\n\nThese FINAL products passed the advanced test:\n${JSON.stringify(products.map(p=>({name:p.name,keyword:p.keyword,price:p.price,netProfit:p.netProfit})))}\n\nFor each product, prepare an exact sourcing brief for finding a VERIFIED manufacturer on Alibaba. You cannot browse Alibaba live, so do NOT invent company names and never claim a specific supplier is verified. Give: best supplier type, exact English search terms (add Chinese terms for 1688 if useful), must-have filters (Verified Supplier, Trade Assurance, years, rating, response rate), realistic target unit price, typical MOQ, sample cost, certifications/compliance needed for Amazon ${market}, 4-6 questions to ask, and red flags.\nReply with ONLY JSON: {"summary":"one or two sentences","suppliers":[{"name":"product name","supplierType":"","searchTerms":"","filters":"","targetPrice":"","moq":"","sampleCost":"","certifications":"","questions":"","redFlags":""}]}`);
+  const raw=await askAI(sysFor(src)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nMarketplace: Amazon ${market}. Budget: ${S.criteria.budget}.\n\nThese FINAL products passed the advanced test:\n${JSON.stringify(products.map(p=>({name:p.name,keyword:p.keyword,price:p.price,netProfit:p.netProfit})))}\n\nThe boss's supplier criteria:\n${supCrit()}\n\nFor each product, prepare an exact sourcing brief for finding a VERIFIED manufacturer on Alibaba that meets these criteria. You cannot browse Alibaba live, so do NOT invent company names and never claim a specific supplier is verified. Give: best supplier type, exact English search terms (add Chinese terms for 1688 if useful), must-have filters (Verified Supplier, Trade Assurance, years, rating, response rate), realistic target unit price, typical MOQ, sample cost, certifications/compliance needed for Amazon ${market}, 4-6 questions to ask, and red flags.\nReply with ONLY JSON: {"summary":"one or two sentences","suppliers":[{"name":"product name","supplierType":"","searchTerms":"","filters":"","targetPrice":"","moq":"","sampleCost":"","certifications":"","questions":"","redFlags":""}]}`);
   const j=parseJSON(raw);if(!j||!Array.isArray(j.suppliers))throw new Error('Did not get the sourcing brief from the AI.');return j;
 }
 
@@ -1010,8 +1024,8 @@ async function listingJob(bossTask){
 const PIPES={amazon:amazonPipeline,ebay:ebayPipeline,ppc:ppcPipeline,listing:listingJob};
 
 /* ================= PDF REPORTS (ecommwithtaha stamp) ================= */
-const PDF_MAP={'★':'*','✓':'v','✔':'v','•':'-','→':'->','←':'<-','–':'-','—':'-','’':"'",'‘':"'",'“':'"','”':'"','…':'...','×':'x','≥':'>=','≤':'<=','✎':'-'};
-const pclean=t=>String(t??'').replace(/[★✓✔•→←–—’‘“”…×≥≤✎]/g,c=>PDF_MAP[c]).replace(/[^\x20-\x7E\n]/g,'').replace(/[ \t]+/g,' ').trim();
+const PDF_MAP={'·':'-','★':'*','✓':'v','✔':'v','•':'-','→':'->','←':'<-','–':'-','—':'-','’':"'",'‘':"'",'“':'"','”':'"','…':'...','×':'x','≥':'>=','≤':'<=','✎':'-'};
+const pclean=t=>String(t??'').replace(/[·★✓✔•→←–—’‘“”…×≥≤✎]/g,c=>PDF_MAP[c]).replace(/[^\x20-\x7E\n]/g,'').replace(/[ \t]+/g,' ').trim();
 async function makePdf(rep){
   if(!window.PDFLib)throw new Error('PDF library did not load (it needs internet).');
   const {PDFDocument,StandardFonts,rgb,degrees}=PDFLib;
@@ -1025,41 +1039,55 @@ async function makePdf(rep){
     rect(178,60,2.6,true);rect(168,50,0.9,false);
     const txt=(t,f,size,dy)=>{const w=f.widthOfTextAtSize(t,size),dx=-w/2;pg.drawText(t,{x:cx+dx*c-dy*s,y:cy+dx*s+dy*c,size,font:f,color:red,rotate:degrees(th)})};
     txt('ecommwithtaha',B,18,-4);txt('OFFICIAL WORK REPORT',B,7,-17);txt(new Date().toLocaleDateString('en-GB'),F,7,12)}
-  function newPage(){page=doc.addPage([Wp,Hp]);
-    page.drawRectangle({x:0,y:Hp-88,width:Wp,height:88,color:rgb(0.04,0.07,0.13)});page.drawRectangle({x:0,y:Hp-92,width:Wp,height:4,color:tc});
-    page.drawText(pclean(TH.title),{x:M,y:Hp-40,size:17,font:B,color:rgb(1,1,1)});
-    page.drawText(pclean(TH.dept?'by '+TH.dept:'Work report by your AI team'),{x:M,y:Hp-58,size:9,font:F,color:rgb(0.8,0.84,0.9)});
-    if(TH.id)page.drawText('Report ID: '+TH.id,{x:M,y:Hp-74,size:8,font:F,color:rgb(0.65,0.7,0.78)});
-    stamp(page);
-    page.drawLine({start:{x:M,y:34},end:{x:Wp-M,y:34},thickness:0.5,color:muted});
-    page.drawText(`ecommwithtaha  |  AI Agent Office  |  page ${doc.getPageCount()}`,{x:M,y:22,size:8,font:F,color:muted});
-    page.drawText('All numbers are AI estimates. Verify on Amazon, eBay and with suppliers before you buy stock.',{x:M,y:12,size:7,font:F,color:muted});
-    y=Hp-116}
+  function newPage(){page=doc.addPage([Wp,Hp]);page.drawRectangle({x:0,y:Hp-6,width:Wp,height:6,color:tc});
+    page.drawText(pclean(TH.title),{x:M,y:Hp-42,size:18,font:B,color:ink});
+    page.drawText(pclean(TH.dept?'by '+TH.dept:'Work report by your AI team'),{x:M,y:Hp-58,size:9,font:F,color:accent});
+    if(TH.id)page.drawText('Report ID: '+TH.id,{x:M,y:Hp-72,size:8,font:F,color:muted});
+    page.drawLine({start:{x:M,y:Hp-86},end:{x:Wp-M,y:Hp-86},thickness:0.6,color:rgb(0.86,0.87,0.9)});stamp(page);y=Hp-110}
   const need=h=>{if(y-h<48)newPage()};
   const head=t=>{need(40);y-=6;page.drawRectangle({x:M,y:y-6,width:Wp-2*M,height:22,color:rgb(0.97,0.94,0.88)});page.drawRectangle({x:M,y:y-6,width:4,height:22,color:accent});page.drawText(pclean(t),{x:M+10,y,size:12,font:B,color:accent});y-=28};
   const para=(t,size=10,f=F,col=ink,ind=0)=>wrap(t,f,size,Wp-2*M-ind).forEach(l=>{need(size+4);page.drawText(l,{x:M+ind,y,size,font:f,color:col});y-=size+4});
   const kv=(k,v)=>{if(v===undefined||v===null||String(v).trim()==='')return;const kk=pclean(k)+': ',kw=B.widthOfTextAtSize(kk,9),lines=wrap(v,F,9,Wp-2*M-kw-12);
     lines.forEach((l,i)=>{need(13);if(!i)page.drawText(kk,{x:M+10,y,size:9,font:B,color:ink});page.drawText(l,{x:M+10+kw,y,size:9,font:F,color:ink});y-=13})};
+  const chipRow=items=>{let x=M;need(30);items.forEach(t=>{const tt=pclean(t),w=B.widthOfTextAtSize(tt,9)+20;if(x+w>Wp-M){x=M;y-=26;need(26)}page.drawRectangle({x,y:y-7,width:w,height:21,color:rgb(0.97,0.97,0.98),borderColor:tc,borderWidth:0.9});page.drawText(tt,{x:x+10,y,size:9,font:B,color:ink});x+=w+8});y-=30};
+  const fieldGrid=(pairs,cols=3)=>{const cw=(Wp-2*M)/cols;pairs=pairs.filter(p=>p[1]);for(let i=0;i<pairs.length;i+=cols){const row=pairs.slice(i,i+cols).map(([l,v])=>[l,wrap(v,B,10,cw-10).slice(0,2)]),h=row.some(r=>r[1].length>1)?48:36;need(h);row.forEach(([l,ls],k)=>{const x=M+k*cw;page.drawText(pclean(l).toUpperCase(),{x,y,size:7,font:B,color:muted});ls.forEach((t,n)=>page.drawText(t,{x,y:y-14-n*12,size:10,font:B,color:ink}))});y-=h}};
+  const table=(heads,rows,fr)=>{const W2=Wp-2*M,ws=fr.map(f=>f*W2);need(24);page.drawRectangle({x:M,y:y-7,width:W2,height:21,color:tc});let x=M;heads.forEach((h,i)=>{page.drawText(pclean(h),{x:x+7,y,size:8.5,font:B,color:rgb(1,1,1)});x+=ws[i]});y-=23;
+    rows.forEach((r,ri)=>{const cells=r.map((c,i)=>wrap(String(c??''),i?F:B,9,ws[i]-12));const h=Math.max(1,...cells.map(c=>c.length))*12+6;need(h+2);if(ri%2===0)page.drawRectangle({x:M,y:y-h+11,width:W2,height:h,color:rgb(0.965,0.97,0.975)});let x2=M;cells.forEach((ls,i)=>{ls.forEach((l,k)=>page.drawText(l,{x:x2+7,y:y-k*12,size:9,font:i?F:B,color:ink}));x2+=ws[i]});y-=h});y-=8};
+  const chipList=terms=>{let x=M+8;need(22);terms.forEach(t=>{const tt=pclean(t);if(!tt)return;const w=F.widthOfTextAtSize(tt,8.5)+12;if(x+w>Wp-M){x=M+8;y-=18;need(18)}page.drawRectangle({x,y:y-5,width:w,height:15,color:rgb(0.97,0.95,0.96),borderColor:rgb(0.88,0.85,0.87),borderWidth:0.5});page.drawText(tt,{x:x+6,y:y-1,size:8.5,font:F,color:ink});x+=w+5});y-=24};
+  const timeline=items=>items.forEach(it=>{const lines=wrap(it.action||'',F,9.5,Wp-2*M-112);need(lines.length*13+10);page.drawText(pclean(it.day||''),{x:M,y,size:10,font:B,color:accent});page.drawRectangle({x:M+100,y:y-lines.length*13+6,width:2,height:lines.length*13+6,color:tc});lines.forEach((l,k)=>page.drawText(l,{x:M+112,y:y-k*13,size:9.5,font:F,color:ink}));y-=lines.length*13+12});
+  const cardTitle=(t,sub)=>{need(44);y-=4;page.drawRectangle({x:M,y:y-7,width:5,height:24,color:tc});const tt=pclean(t);page.drawText(tt,{x:M+13,y,size:14,font:B,color:ink});if(sub)page.drawText(pclean(sub),{x:M+13+B.widthOfTextAtSize(tt,14)+8,y:y+1,size:9.5,font:F,color:muted});y-=30};
+  const roadmap=RM=>{need(100);y-=16;page.drawText(pclean(RM.product||'PPC plan'),{x:M,y,size:22,font:B,color:ink});y-=24;page.drawText(pclean(RM.subtitle||'PPC Launch Roadmap'),{x:M,y,size:13,font:B,color:accent});y-=18;if(RM.tagline){para(RM.tagline,9,F,muted)}y-=2;
+    if((RM.stats||[]).length)chipRow(RM.stats);if(RM.intro){para(RM.intro,9.5);y-=4}
+    (RM.campaigns||[]).forEach((c,ci)=>{cardTitle(c.title||('Campaign '+(ci+1)));fieldGrid([['Campaign name',c.name],['Ad group',c.adGroup],['Budget',c.budget],['Bidding',c.bidding],['Top of search',c.topOfSearch],[c.matchType?'Match type':'Targeting',c.matchType||c.targeting]]);
+      if((c.keywords||[]).length)table(['Keyword','Search Volume','Sugg. Bid','Your Bid'],c.keywords.map(k=>[k.keyword,k.searchVolume,k.suggestedBid,k.bid]),[0.46,0.2,0.17,0.17]);
+      if((c.autoTargets||[]).length)table(['Targeting group','Bid','What it does'],c.autoTargets.map(a=>[a.group,a.bid,a.note]),[0.28,0.14,0.58]);
+      if(c.note){para(c.note,9,F,muted)}y-=6});
+    if((RM.negatives||[]).length){cardTitle('Negative keywords','(all campaigns, from day 1)');RM.negatives.forEach(g=>{para(`${g.group||''}  (${g.match||'Negative phrase'})`,9.5,B);chipList(g.terms||[])})}
+    if((RM.held||[]).length){cardTitle('Keywords on hold');table(['Keyword','Search Volume','When to start'],RM.held.map(h=>[h.keyword,h.searchVolume,h.when]),[0.42,0.2,0.38])}
+    if((RM.timeline||[]).length){cardTitle('Launch timeline');timeline(RM.timeline)}
+    if((RM.tips||[]).length){cardTitle('Launch par PPC ke saath');RM.tips.forEach(t=>para('•  '+t,9.5))}
+    if(RM.expect){y-=4;kv('What to expect',RM.expect)}if(RM.dataNote)kv('About the data',RM.dataNote)};
   newPage();
   if(TH.dept){const y0=y+12;kv('Department',TH.dept);kv('Prepared by',TH.agentsText||'');kv('Report ID',TH.id||'');page.drawRectangle({x:M,y:y+4,width:3,height:y0-y-4,color:tc});page.drawLine({start:{x:M,y:y+2},end:{x:Wp-M,y:y+2},thickness:0.6,color:tc});y-=12}
   para('Task: '+rep.task,11,B);para('Date: '+rep.date,9,F,muted);y-=6;
   head('Report to the boss');para(/[\u0600-\u06FF\u0900-\u097F]/.test(rep.summary)?'(The report was written in Urdu/Hindi script. Read it in the app; the details below are in English.)':rep.summary,10);
   for(const r of rep.results){
     if(!r)continue;
-    if(r.kind==='amazon'){head('Amazon - final products');if(!(r.products||[]).length)para('No product passed the advanced test this time.');
+    if(r.kind==='amazon'){if(r.decision){head("Manager's decision");kv('We go with',r.decision.pick);kv('Why',r.decision.reason);kv('Risks',r.decision.risks);kv('First steps',r.decision.firstSteps);y-=4}head('Amazon - final products');if(!(r.products||[]).length)para('No product passed the advanced test this time.');
       (r.products||[]).forEach(x=>{need(110);page.drawRectangle({x:M,y:y-8,width:Wp-2*M,height:24,color:tc});page.drawText(pclean(`#${x.rank||''}  ${x.name}`),{x:M+8,y:y-1,size:12,font:B,color:rgb(1,1,1)});y-=30;
         page.drawRectangle({x:M,y:y-30,width:Wp-2*M,height:40,color:rgb(0.99,0.96,0.9)});kv('Search volume (est.)',x.searchVolume||'n/a');kv('Main keyword',x.keyword);kv('Why we should enter',x.whyEnter||x.whyWinner);y-=4;
         kv('Price',x.price);kv('Net profit / unit',x.netProfit);kv('ROI',x.roi);kv('Score',x.finalScore);kv('Why it won',x.whyWinner);kv('Risks',x.risks);kv('Next steps',x.nextSteps);kv('Tested by',x.testedBy);kv('Amazon search',links(r.market||'US',x.keyword||x.name).amazonLink);y-=6});
       if((r.suppliers||[]).length){head('Amazon - sourcing (verified manufacturer search)');para('These are exact search briefs, not live supplier checks. Open the link, tick "Verified Supplier" and "Trade Assurance", then compare 3-5 factories and order samples.',8,F,muted);y-=4;
-        r.suppliers.forEach(x=>{need(50);para(x.name,11,B);kv('Supplier type',x.supplierType);kv('Search terms',x.searchTerms);kv('Must-have filters',x.filters);kv('Target unit price',x.targetPrice);kv('MOQ',x.moq);kv('Sample cost',x.sampleCost);kv('Certifications',x.certifications);kv('Ask the supplier',x.questions);kv('Red flags',x.redFlags);kv('FOB price',x.fobPrice);kv('Shipping',x.shipping);kv('Duties',x.duties);kv('Landed cost',x.landedCost);kv('MOQ strategy',x.moqStrategy);kv('Negotiation',x.negotiation);kv('Compliance',x.compliance);kv('Samples',x.samples);kv('Inspection',x.inspection);kv('FBA prep',x.fbaPrep);kv('Alibaba search',links(r.market||'US',x.searchTerms||x.name).supplierLink);y-=6})}}
+        r.suppliers.forEach(x=>{need(50);para(x.name,11,B);kv('Supplier type',x.supplierType);kv('Search terms',x.searchTerms);kv('Must-have filters',x.filters);kv('Target unit price',x.targetPrice);kv('MOQ',x.moq);kv('Sample cost',x.sampleCost);kv('Certifications',x.certifications);(x.options||[]).forEach((o,k)=>kv('Supplier option '+(k+1),`${o.supplier} (${o.platform||''}) | verified: ${o.verified||'?'} | ${o.years||'?'} yrs | rating ${o.rating||'?'} | MOQ ${o.moq||'?'} | ${o.price||''} | ${o.url}`));kv('Ask the supplier',x.questions);kv('Red flags',x.redFlags);kv('FOB price',x.fobPrice);kv('Shipping',x.shipping);kv('Duties',x.duties);kv('Landed cost',x.landedCost);kv('MOQ strategy',x.moqStrategy);kv('Negotiation',x.negotiation);kv('Compliance',x.compliance);kv('Samples',x.samples);kv('Inspection',x.inspection);kv('FBA prep',x.fbaPrep);kv('Alibaba search',links(r.market||'US',x.searchTerms||x.name).supplierLink);y-=6})}}
     else if(r.kind==='ebay'){head('eBay dropshipping - ready listings');if(!(r.listings||[]).length)para(r.summary||'No product passed eBay sourcing this time.');
       (r.listings||[]).forEach(x=>{need(50);para(x.name,11,B);kv('Sold price',x.soldPrice);kv('Sell-through',x.sellThrough);kv('Supplier',x.supplierPlatform);kv('Supplier cost',x.supplierCost);kv('Shipping',x.shippingDays);kv('eBay fees',x.ebayFees);kv('Profit',x.profit);kv('eBay title',x.title);kv('Item specifics',x.specifics);kv('Image plan',x.images);kv('Description',x.description);kv('Check sold listings',x.soldLink);kv('Supplier search',x.supplierLink);y-=6})}
     else if(r.kind==='ppc'){head('Amazon PPC plan'+(r.asin?' - '+r.asin:''));if(!r.plan){para(r.summary);continue}
       if(r.plan.research){const R=r.plan.research,ML=R.myListing||{};para('ASIN check',10,B);kv('Checked',R.live?'Live on the web (Google Search)':'From AI knowledge (not live)');kv('Title',ML.title);kv('Price / rating',[ML.price,ML.rating&&ML.rating+' stars',ML.reviews&&ML.reviews+' reviews'].filter(Boolean).join(' · '));kv('Category',ML.category);(R.competitors||[]).slice(0,5).forEach((c,i)=>kv('Competitor '+(i+1),`${c.title} | ${c.price||'?'} | ${c.rating||'?'} stars`));(R.sources||[]).slice(0,5).forEach(x=>kv('Source',(x.title||'')+' '+x.url));y-=4}
       if(S.h10&&S.h10.rows&&S.h10.rows.length)kv('Keyword data','Helium 10 export: '+S.h10.file);
+      if(r.plan.roadmap){roadmap(r.plan.roadmap)}else{
       para(r.plan.summary||'',9);y-=4;para('Keywords',10,B);r.plan.keywords.forEach(k=>para(`- ${k.keyword}   [${k.match}]   ${k.priority||''}   bid ${k.bid||''}`,9,F,ink,8));y-=4;
       para('Campaigns',10,B);(r.plan.campaigns||[]).forEach(c=>para(`- ${c.name} | ${c.type} | ${c.budget} | ${c.notes||''}`,9,F,ink,8));y-=2;
-      kv('Negative keywords',r.plan.negatives);kv('4-week plan',r.plan.plan);const TG=r.plan.targeting||{};if(Object.keys(TG).length){y-=4;para('Targeting',10,B);kv('Product targeting',TG.productTargeting);kv('Category targeting',TG.categoryTargeting);kv('Sponsored Brands',TG.sponsoredBrands);kv('Sponsored Display',TG.sponsoredDisplay);kv('Forecast',TG.forecast)}y-=4;if(r.review)para('Advanced test',10,B);
+      kv('Negative keywords',r.plan.negatives);kv('4-week plan',r.plan.plan);}const TG=r.plan.targeting||{};if(Object.keys(TG).length){y-=4;para('Targeting',10,B);kv('Product targeting',TG.productTargeting);kv('Category targeting',TG.categoryTargeting);kv('Sponsored Brands',TG.sponsoredBrands);kv('Sponsored Display',TG.sponsoredDisplay);kv('Forecast',TG.forecast)}y-=4;if(r.review)para('Advanced test',10,B);
       const v=r.review||{};kv('Verdict',v.verdict);kv('Score',v.score);kv('Issues',v.issues);kv('Fixes',v.fixes);kv('Target ACoS',v.targetAcos);
       if(r.adv){y-=4;head('PPC Advanced plan');const A=r.adv;kv('Bid strategy',A.bidStrategy);kv('Placements',A.placements);kv('Match-type strategy',A.matchTypeStrategy);kv('Budget by stage',A.budgetByStage);kv('ACoS targets',A.targetAcos);kv('Harvesting rules',A.harvesting);kv('Negative rules',A.negatives);kv('Dayparting',A.dayparting);kv('Scaling',A.scaling);kv('Weekly checklist',A.weeklyChecklist)}}
     else if(r.kind==='listing'){if(r.comp){head('Step 1 - Competitor research'+(r.comp.asin?' for ASIN '+r.comp.asin:''));kv('Checked',r.comp.live?'Live on the web (Google Search)':'From AI knowledge (not live)');kv('Summary',r.comp.summary);const ML=r.comp.myListing||{};kv('Our current title',ML.title);kv('Our price / rating',[ML.price,ML.rating&&ML.rating+' stars',ML.reviews&&ML.reviews+' reviews'].filter(Boolean).join(' · '));
@@ -1076,6 +1104,8 @@ async function makePdf(rep){
   for(const r of rep.results){if(!r||r.kind!=='listing')continue;for(const l of r.listings||[]){if(!(l.infoImgs||[]).length)continue;
     need(320);head('Infographic mockups - '+(l.product||''));para('Layout mockups for your designer. Put the real product photo in the dashed box.',8,F,muted);need(262);let xx=M;
     for(const u of l.infoImgs){try{const img=await doc.embedPng(u);page.drawImage(img,{x:xx,y:y-240,width:240,height:240});xx+=256}catch(e){}}y-=256}}
+  const pgs=doc.getPages(),tot=pgs.length,foot=pclean(rep.footer||TH.title||'AI Agent Office');
+  pgs.forEach((pg,i)=>{pg.drawLine({start:{x:M,y:34},end:{x:Wp-M,y:34},thickness:0.5,color:rgb(0.86,0.87,0.9)});pg.drawText(`${foot}  ·  ecommwithtaha  ·  Page ${i+1} of ${tot}`,{x:M,y:22,size:8,font:F,color:muted});pg.drawText('Numbers are estimates unless marked as Helium 10 or live data. Verify before you buy stock.',{x:M,y:12,size:7,font:F,color:muted})});
   return new Blob([await doc.save()],{type:'application/pdf'});
 }
 function logPdf(blob,name){
@@ -1098,7 +1128,7 @@ S.academy.hires.slice(0,2).forEach((h,i)=>addPersonLive(hireDef(h,i),h.f));
 function tagOf(p){if(/^tr\d+$/.test(p.key)){const t=S.academy.trainees.find(t=>'tr'+t.id===p.key);if(t)return `${p.name} ${Math.round(t.talent)}%`;return p.name+' ★'}return p.name}
 function growTalent(a,b){S.academy.trainees.forEach(t=>{t.talent=Math.min(100,t.talent+a+Math.random()*(b-a));
   if(t.talent>=85&&!t.ready){t.ready=true;const m=P.manager,line=curMode==='en'?`Boss, ${t.name} is now talented (${Math.round(t.talent)}%). Hire from the Academy?`:`Boss, ${t.name} ab talented ${t.f?'ho gayi':'ho gaya'} hai (${Math.round(t.talent)}%). Academy se hire kar lein?`;
-    say(m,line,6000);log(m.name,line,m.shirt);speak(line,m,curMode,'')}});save()}
+    say(m,line,6000);log(m.name,line,m.shirt)}});save()}
 async function academyLoop(){await nap(15000);for(;;){await nap(40000+Math.random()*20000);if(document.hidden||office.meeting)continue;
   const tr=P.trainer;if(tr&&!office.busy)say(tr,LESSONS[Math.floor(Math.random()*LESSONS.length)],3500);growTalent(1,4)}}
 async function hireTrainee(id,dept){
@@ -1110,8 +1140,8 @@ async function hireTrainee(id,dept){
   A.trainees=A.trainees.filter(x=>x!==t);const h={id:t.id,name:t.name,f:t.f,talent:t.talent,dept};A.hires.push(h);save();
   const d=hireDef(h,seat);p.role=d.role;p.skill=d.skill;
   const line=mode==='en'?`Welcome to the team, ${t.name}! You will help ${deptLabel(dept)}.`:`Welcome ${t.name}! Aap ${deptLabel(dept)} team ki madad karenge.`;
-  say(m,line,4500);log(m.name,line,m.shirt);speak(line,m,mode,'');
-  act(p,async()=>{p.cabRef=makeCab(ROOMS.training,4+seat);p.seated=false;say(p,'Shukriya boss! 🎉',2500);await goSeat(p)});
+  say(m,line,4500);log(m.name,line,m.shirt);
+  setTimeout(renderDepts,15000);act(p,async()=>{p.cabRef=makeCab(ROOMS.training,4+seat);p.seated=false;say(p,'Shukriya boss! 🎉',2500);await goSeat(p)});
   const used=new Set([...A.trainees,...A.hires].map(x=>x.name)),pk=TRAINEE_POOL.find(([n])=>!used.has(n))||['Trainee '+(A.seq+1),'m'];
   A.seq++;const nt={id:A.seq,name:pk[0],f:pk[1]==='f',talent:20+Math.random()*25,seat:oldSeat};A.trainees.push(nt);save();
   await sleep(4000);
@@ -1248,7 +1278,8 @@ async function deptPdf(kind,task,result,opt={}){
   if(!result)return;const T=THEMES[kind]||THEMES.general,id=reportId(kind);
   const ag=(opt.agents||T.agents.map(k=>P[k])).filter(Boolean);
   const theme={...T,id,dept:opt.dept||T.dept,agentsText:opt.agentsText||ag.map(p=>`${p.name} (${p.skill||p.role})`).join('; ')};
-  try{logPdf(await makePdf({task,date:new Date().toLocaleString(),summary:opt.summary||result.summary||'',results:[result],theme}),`ecommwithtaha-${kind}-${id}.pdf`)}catch(e){log('System','PDF: '+e.message,null,true)}
+  const rm=result.plan&&result.plan.roadmap;
+  try{logPdf(await makePdf({task,date:new Date().toLocaleString(),summary:opt.summary||result.summary||'',results:[result],theme,footer:rm?`${rm.product||''} · ${rm.subtitle||'PPC Launch Roadmap'}`:T.title}),`ecommwithtaha-${kind}-${id}.pdf`)}catch(e){log('System','PDF: '+e.message,null,true)}
 }
 
 /* ================= PPC: Planning -> Advanced ================= */
@@ -1419,14 +1450,15 @@ PIPES.clients=t=>clientsPipeline2(t);
 delete PIPES.ebay;
 
 /* ================= SOURCING DEPARTMENT (3 cabins) ================= */
+function supCrit(){const u=S.supplier||{};return `- Supplier type: ${u.type||'Manufacturer'} only\n- Platforms: ${u.platforms||'Alibaba, Made-in-China, 1688'}\n- Verified Supplier: ${u.verified===false?'not required':'required'}; Trade Assurance: ${u.ta===false?'not required':'required'}\n- At least ${u.years||3} years on the platform, rating ${u.rating||4.5}+\n- MOQ at most ${u.moq||500} pcs\n- Landed cost at most ${u.landed||30}% of the selling price\n- Preferred regions: ${u.regions||'any'}\n- Sample budget: ${u.sample||'$100'}\n- Must have: ${u.must||'-'}`}
 async function srcCostCall(p,bossTask,products,market){
   if(isDemo()){await sleep(2600);return{items:products.map(()=>({fobPrice:'$2.20-$3.10',shipping:'Sea ~$0.45/unit, air ~$1.60/unit',duties:'~4-6% (check HTS code)',landedCost:'$3.10-$4.20',moqStrategy:'Ask for 300 pcs trial order at slightly higher price, then 1,000+',negotiation:'Get 3 quotes, ask for free logo on first order, pay 30/70 via Trade Assurance'}))}}
-  const raw=await askAI(sysFor(p)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nMarketplace: Amazon ${market}. Budget: ${S.criteria.budget}.\nFinal products:\n${JSON.stringify(products.map(x=>({name:x.name,price:x.price})))}\n\nFor each product (same order) estimate: FOB unit price range, shipping per unit (sea and air), import duties estimate, landed cost per unit, an MOQ strategy for a new seller, and negotiation tips. Estimates only.\nReply with ONLY JSON: {"items":[{"fobPrice":"","shipping":"","duties":"","landedCost":"","moqStrategy":"","negotiation":""}]}`);
+  const raw=await askAI(sysFor(p)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nMarketplace: Amazon ${market}. Budget: ${S.criteria.budget}.\nFinal products:\n${JSON.stringify(products.map(x=>({name:x.name,price:x.price})))}\n\nThe boss's supplier criteria:\n${supCrit()}\n\nFor each product (same order) estimate: FOB unit price range, shipping per unit (sea and air), import duties estimate, landed cost per unit, an MOQ strategy for a new seller, and negotiation tips. Estimates only.\nReply with ONLY JSON: {"items":[{"fobPrice":"","shipping":"","duties":"","landedCost":"","moqStrategy":"","negotiation":""}]}`);
   const j=parseJSON(raw);if(!j||!Array.isArray(j.items))throw new Error('Did not get the costing from the AI.');return j;
 }
 async function srcQcCall(p,bossTask,products,market){
   if(isDemo()){await sleep(2600);return{items:products.map(()=>({compliance:'Check Amazon category approval; food-contact items need FDA/LFGB test report.',samples:'Order 3 samples from different factories; compare thickness, smell, finish.',inspection:'Pre-shipment inspection (AQL 2.5) before final payment.',fbaPrep:'Poly bag with suffocation warning if needed, FNSKU label, carton under 50 lb.'}))}}
-  const raw=await askAI(sysFor(p)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nMarketplace: Amazon ${market}.\nFinal products:\n${JSON.stringify(products.map(x=>({name:x.name})))}\n\nFor each product (same order) give: compliance and certifications needed, a sample checklist, an inspection plan, and Amazon FBA packaging/prep requirements.\nReply with ONLY JSON: {"items":[{"compliance":"","samples":"","inspection":"","fbaPrep":""}]}`);
+  const raw=await askAI(sysFor(p)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nMarketplace: Amazon ${market}.\nFinal products:\n${JSON.stringify(products.map(x=>({name:x.name})))}\n\nThe boss's supplier criteria:\n${supCrit()}\n\nFor each product (same order) give: compliance and certifications needed, a sample checklist, an inspection plan, and Amazon FBA packaging/prep requirements.\nReply with ONLY JSON: {"items":[{"compliance":"","samples":"","inspection":"","fbaPrep":""}]}`);
   const j=parseJSON(raw);if(!j||!Array.isArray(j.items))throw new Error('Did not get the quality plan from the AI.');return j;
 }
 async function sourcingTeam(bossTask,products,market){
@@ -1437,6 +1469,9 @@ async function sourcingTeam(bossTask,products,market){
       busyWork(f,'Landed cost',()=>srcCostCall(f,bossTask,products,market)).catch(e=>{log(f.name,helpFor(e),null,true);return{items:[]}}),
       busyWork(m,'Quality & compliance',()=>srcQcCall(m,bossTask,products,market)).catch(e=>{log(m.name,helpFor(e),null,true);return{items:[]}})]);
     const sup=products.map((x,i)=>({...(a.suppliers[i]||{name:x.name}),name:x.name,...(b.items[i]||{}),...(c.items[i]||{})}));
+    const live=await busyWork(n,'Finding exact suppliers',()=>supplierLive(n,bossTask,products,market)).catch(e=>{log(n.name,helpFor(e),null,true);return null});
+    if(live)sup.forEach((x,i)=>{const it=live.items.find(t=>isDup(t.product,[x.name]))||live.items[i]||{};x.options=it.options||[];const o=x.options[0];if(o){x.bestSupplier=o.supplier;x.bestLink=o.url}});
+    if(live)log(n.name,'Exact supplier pages found:\n'+sup.map(x=>`• ${x.name}: `+((x.options||[]).map(o=>o.supplier).join(', ')||'none found')).join('\n'),n.shirt);
     log(n.name,'Supplier briefs ready:\n'+sup.map(x=>`• ${x.name}: ${x.supplierType||''}, target ${x.targetPrice||''}`).join('\n'),n.shirt);
     log(f.name,'Landed cost:\n'+sup.map(x=>`• ${x.name}: ${x.landedCost||'-'}`).join('\n'),f.shirt);
     log(m.name,'Quality plans ready for '+sup.length+' products.',m.shirt);
@@ -1461,9 +1496,9 @@ async function ppcPipeline3(bossTask){
     plan.research=research;
     log(f.name,`${plan.summary}\n`+plan.keywords.slice(0,10).map(k=>`• ${k.keyword} [${k.match}] ${k.bid}`).join('\n'),f.shirt);
     say(f,`${z.name}, ${rz.name}, keywords ready!`,2400);
-    const [camp,tg]=await Promise.all([busyWork(z,'Building campaigns',()=>ppcCampaignCall(z,bossTask,plan,asin)).catch(e=>{log(z.name,helpFor(e),null,true);return null}),
+    const [camp,tg]=await Promise.all([busyWork(z,'Building the roadmap',()=>ppcRoadmapCall(z,bossTask,plan,asin).then(rm=>({roadmap:rm,campaigns:(rm.campaigns||[]).map(c=>({name:c.name,type:c.matchType||c.targeting||'',budget:c.budget,notes:c.note||''})),negatives:(rm.negatives||[]).map(g=>(g.terms||[]).join(', ')).join(', '),plan:(rm.timeline||[]).map(t=>t.day+': '+t.action).join(' | ')}))).catch(e=>{log(z.name,helpFor(e),null,true);return null}),
       busyWork(rz,'Targeting plan',()=>ppcTargetCall(rz,bossTask,plan,asin)).catch(e=>{log(rz.name,helpFor(e),null,true);return null})]);
-    if(camp){plan={...plan,campaigns:camp.campaigns||plan.campaigns,negatives:camp.negatives||plan.negatives,plan:camp.plan||plan.plan};log(z.name,'Campaigns:\n'+(plan.campaigns||[]).map(c=>`• ${c.name} – ${c.budget}`).join('\n'),z.shirt)}
+    if(camp){plan={...plan,roadmap:camp.roadmap,campaigns:camp.campaigns||plan.campaigns,negatives:camp.negatives||plan.negatives,plan:camp.plan||plan.plan};log(z.name,'Roadmap ready:\n'+(plan.campaigns||[]).map(c=>`• ${c.name} – ${c.budget}`).join('\n'),z.shirt)}
     if(tg){plan.targeting=tg;log(rz.name,`Targeting:\n• ${tg.productTargeting}\n• Forecast: ${tg.forecast}`,rz.shirt)}
     await handOver(rz,z,'Targeting ready');
     await handOver(z,h,`${h.name}, basic plan ready. Advanced plan banao!`,true);
@@ -1480,6 +1515,7 @@ async function ppcPipeline3(bossTask){
       ...[['Product targeting','productTargeting'],['Category targeting','categoryTargeting'],['Sponsored Brands','sponsoredBrands'],['Sponsored Display','sponsoredDisplay'],['Forecast','forecast']].filter(([,k])=>T[k]).map(([t,k])=>({date:d,asin,product:prod,type:'Targeting: '+t,item:'',match:'',priority:'',bid:'',details:T[k]})),
       ...[['Bid strategy','bidStrategy'],['Placements','placements'],['Match types','matchTypeStrategy'],['Budget by stage','budgetByStage'],['ACoS targets','targetAcos'],['Harvesting','harvesting'],['Negatives','negatives'],['Dayparting','dayparting'],['Scaling','scaling'],['Weekly checklist','weeklyChecklist']].filter(([,k])=>adv[k]).map(([t,k])=>({date:d,asin,product:prod,type:'Advanced: '+t,item:'',match:'',priority:'',bid:'',details:adv[k]}))];
     await deliverToRecords(h,'ppc',[['ppc',rows]],'Advanced PPC plan. Please file');showTab('ppc');
+    S.lastPpc={date:today(),asin,roadmap:plan.roadmap||null};save();
     return{kind:'ppc',who:'PPC Planning + PPC Advanced',summary:`${plan.summary} Targeting by ${rz.name}; advanced plan by ${h.name} and ${sd.name}.`,asin,plan,adv};
   }finally{team.forEach(p=>{p.job=false;p.typing=false})}
 }
@@ -1635,6 +1671,56 @@ function openEmailSetup(){const e=S.email||{app:'gmail'},B=$('dlgBody');$('dlgTi
     try{if(!S.email.from)throw new Error('Write your Gmail above first.');await sendEmail(S.email.from,'Test from AI Agent Office','It works! Your agents can now send emails from this address.');$('ej_msg').textContent=' ✓ Sent. Check your inbox.'}catch(err){$('ej_msg').textContent=' '+err.message}finally{S.email=tmp}};
   $('dlgSave').textContent='Save';onSave=()=>{S.email={name:$('e_name').value,company:$('e_comp').value,from:$('e_from').value.trim(),app:$('e_app').value,phone:$('e_phone').value,site:$('e_site').value,subject:$('e_subj').value,offer:$('e_offer').value,ej:{service:$('ej_s').value.trim(),template:$('ej_t').value.trim(),key:$('ej_k').value.trim()}};renderSheet()};$('dlg').showModal()}
 
+/* ================= LIVE SUPPLIER SEARCH + MANAGER DECISION ================= */
+const SUP_DOMAINS=/(^|\.)(alibaba\.com|made-in-china\.com|globalsources\.com|1688\.com|dhgate\.com|tradewheel\.com)$/i;
+async function supplierLive(n,bossTask,products,market){
+  if(isDemo()){await sleep(2500);return{items:products.map(p=>({product:p.name,options:[{supplier:'Demo supplier (example only)',url:`https://www.alibaba.com/trade/search?SearchText=${encodeURIComponent(p.keyword||p.name)}`,platform:'Alibaba',verified:'check',years:'-',rating:'-',moq:'-',price:'-'}]}))}}
+  if(S.settings.provider!=='gemini')return null;
+  const res=await askWeb(sysFor(n)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nThe boss's supplier criteria:\n${supCrit()}\n\nProducts:\n${products.map(p=>'- '+p.name+' (keyword: '+(p.keyword||p.name)+')').join('\n')}\n\nUse Google Search to find REAL supplier product pages on Alibaba, Made-in-China or Global Sources for each product. For each product give 2-3 options with: supplier/company name exactly as shown, the product page URL, platform, whether it shows Verified/Gold supplier, years on platform, rating, MOQ and price range as shown on the page. Only include pages you actually found; never invent a supplier or a URL. Prefer options that meet the criteria.\nReply with ONLY JSON: {"items":[{"product":"","options":[{"supplier":"","url":"","platform":"","verified":"","years":"","rating":"","moq":"","price":""}]}]}`);
+  const j=parseJSON(res.text);if(!j||!Array.isArray(j.items))return null;
+  j.items.forEach(it=>{it.options=(it.options||[]).filter(o=>o&&o.url&&SUP_DOMAINS.test(domainOf(o.url)))});return j;
+}
+async function managerReview(bossTask,products,suppliers,market){
+  const m=P.manager;
+  if(isDemo()){await sleep(2200);const p=products[0]||{};return{pick:p.name,reason:'Best mix of profit, steady demand and easy, low-MOQ sourcing.',risks:'Competitors may drop price; order samples before paying.',firstSteps:'Order samples from 2 suppliers this week, then start the listing.',reply:`Boss, maine sheet aur products khud check kiye hain. Abhi hum ${p.name} mein chalte hain: profit acha hai, demand steady hai aur supplier aasani se mil raha hai.`,speech:''}}
+  const raw=await askAI(sysFor(m)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nMarketplace: Amazon ${market}. Budget: ${S.criteria.budget}.\nFinal products:\n${JSON.stringify(products).slice(0,4000)}\nSourcing sheet from the Sourcing Department:\n${JSON.stringify(suppliers).slice(0,4000)}\n\nYou are the office manager. Read the sheet, check each product yourself (profit after landed cost, demand, competition, MOQ vs budget, risks) and choose ONE product the company should go with right now. ${langInstr(curMode)}\nReply with ONLY JSON: {"pick":"product name","reason":"2-3 sentences","risks":"","firstSteps":"","reply":"what you say to the boss, starting like 'Boss, abhi hum ... mein chalte hain'","speech":""} where ${speechInstr(curMode)}`);
+  const j=parseJSON(raw);if(!j||!j.pick)throw new Error('Manager could not decide.');return j;
+}
+
+/* ================= PPC ROADMAP (Zain) ================= */
+async function ppcRoadmapCall(z,bossTask,plan,asin){
+  const kws=plan.keywords||[],sv=k=>{const h=S.h10&&S.h10.rows&&S.h10.rows.find(r=>r.kw.toLowerCase()===String(k).toLowerCase());return h?h.sv.toLocaleString():''};
+  if(isDemo()){await sleep(2800);const prod=plan.product||'Your product';return{product:prod,subtitle:'PPC Launch Roadmap',tagline:(asin?asin+' · ':'')+'Amazon.com US',stats:['3 campaigns','$12/day each','$36/day total','60-day plan'],
+    intro:'Keywords sirf woh chune gaye hain jo is product par sach mein lagte hain. Budget: 3 campaigns, $12/day har ek.',
+    campaigns:[{title:'Campaign 1 Exact (Ranking)',name:'PRODUCT | SP | EXACT | RANKING',adGroup:'Exact Core',budget:'$12 / day',bidding:'Dynamic bids, up and down',topOfSearch:'50%',matchType:'Exact',keywords:kws.slice(0,4).map(k=>({keyword:k.keyword,searchVolume:sv(k.keyword)||'—',suggestedBid:k.bid,bid:k.bid})),note:'Ye keywords sab se zyada relevant hain aur competition kam hai, nayi listing ko rank yahin se jaldi milega.'},
+      {title:'Campaign 2 Phrase (Research)',name:'PRODUCT | SP | PHRASE | RESEARCH',adGroup:'Phrase Core Terms',budget:'$12 / day',bidding:'Dynamic bids, down only',topOfSearch:'0%',matchType:'Phrase',keywords:kws.slice(0,3).map(k=>({keyword:k.keyword,searchVolume:sv(k.keyword)||'—',suggestedBid:k.bid,bid:'$0.65'})),note:'Bare keywords par bid suggested se kam rakhi hai taake budget subah hi khatam na ho.'},
+      {title:'Campaign 3 Auto (Discovery)',name:'PRODUCT | SP | AUTO | DISCOVERY',adGroup:'Auto All',budget:'$12 / day',bidding:'Dynamic bids, down only',topOfSearch:'0%',targeting:'Automatic',autoTargets:[{group:'Close match',bid:'$0.85',note:'Sab se milti julti searches'},{group:'Loose match',bid:'$0.40',note:'Door ki searches, is liye bid kam'},{group:'Substitutes',bid:'$0.60',note:'Competitor products ke pages'},{group:'Complements',bid:'$0.30',note:'Mutaliq products'}]}],
+    negatives:[{group:'Doosri qisam ke products',match:'Negative phrase',terms:['mini','travel','portable','cheap','used']},{group:'Doosre brands',match:'Negative phrase',terms:['brand a','brand b']}],
+    held:[{keyword:'feature keyword',searchVolume:'—',when:'Jab feature supplier se confirm ho'}],
+    timeline:[{day:'Din 1',action:'Teeno campaigns banayein, bids aur negatives daalein. 5-10% coupon on karein.'},{day:'Din 1-14',action:'Kuch band na karein. Launch par ACoS zyada hona normal hai.'},{day:'Din 7',action:'Search Term Report dekhein, bilkul ghalat terms ko Negative Exact karein.'},{day:'Din 14',action:'Jin terms se order aaya unhein Exact mein daalein (harvest).'},{day:'Din 30',action:'Munafe wale keywords ki bid 10-15% barhayein, budget barhayein.'}],
+    tips:['Coupon 5-10%: green badge CTR barhata hai.','Har order par Request a Review dabayein.'],expect:'$36/day mein lagbhag 40-45 clicks roz; listing 8-10% convert kare to roz 3-5 orders.',dataNote:S.h10&&S.h10.file?'Search volume Helium 10 export se: '+S.h10.file:'Search volumes andaze hain; Helium 10 export upload karein to asli numbers aayenge.'}}
+  const raw=await askAI(sysFor(z)+AMZ_EXPERT,`Boss's request: "${bossTask}"\nASIN: ${asin||'(not given)'}\nKeywords from ${P.ppc.name}:\n${JSON.stringify(kws).slice(0,4500)}\n${h10Top(60)}\n\nBuild a clear PPC LAUNCH ROADMAP like a professional agency would: 3 campaigns (Exact for ranking, Phrase for research with lower bids on the big keywords, Auto for discovery). For every campaign give the campaign name in the style "PRODUCT | SP | EXACT | RANKING", ad group, daily budget, bidding strategy, top-of-search %, match type or targeting, a keyword table (keyword, search volume, suggested bid, your bid) or auto targeting groups (group, bid, what it does), and a one-line reason. Then negative keyword groups (other product types, other brands, unconfirmed features), keywords on hold (with when to start them), a launch timeline from day 1 to day 60, launch tips (coupon, price, reviews) and what to expect. Use real Helium 10 search volumes when given; otherwise write them as estimates. Short explanations in the boss's language. ${langInstr(curMode)}\nReply with ONLY JSON: {"product":"","subtitle":"PPC Launch Roadmap","tagline":"","stats":["3 campaigns","$12/day each","$36/day total","60-day plan"],"intro":"","campaigns":[{"title":"Campaign 1 Exact (Ranking)","name":"","adGroup":"","budget":"","bidding":"","topOfSearch":"","matchType":"","targeting":"","keywords":[{"keyword":"","searchVolume":"","suggestedBid":"","bid":""}],"autoTargets":[{"group":"","bid":"","note":""}],"note":""}],"negatives":[{"group":"","match":"Negative phrase","terms":[""]}],"held":[{"keyword":"","searchVolume":"","when":""}],"timeline":[{"day":"","action":""}],"tips":[""],"expect":"","dataNote":""}`,0.5);
+  const j=parseJSON(raw);if(!j||!Array.isArray(j.campaigns))throw new Error('Did not get the PPC roadmap from the AI.');return j;
+}
+
+/* ================= EXCEL (all tabs + PPC roadmap) ================= */
+function exportExcel(){
+  if(!window.XLSX){log('System','Excel library did not load (needs internet).',null,true);return}
+  const wb=XLSX.utils.book_new(),add=(name,aoa,widths)=>{const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=widths.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,name.slice(0,31))};
+  const L=S.lastPpc;
+  if(L&&L.roadmap){const R=L.roadmap,a=[[R.product||'PPC plan'],[R.subtitle||'PPC Launch Roadmap'],[(R.stats||[]).join('  ·  ')],[R.intro||''],[]];
+    (R.campaigns||[]).forEach(c=>{a.push([c.title||'Campaign']);a.push(['Campaign name',c.name,'Ad group',c.adGroup]);a.push(['Budget',c.budget,'Bidding',c.bidding]);a.push(['Top of search',c.topOfSearch,c.matchType?'Match type':'Targeting',c.matchType||c.targeting]);
+      if((c.keywords||[]).length){a.push(['Keyword','Search Volume','Sugg. Bid','Your Bid']);c.keywords.forEach(k=>a.push([k.keyword,k.searchVolume,k.suggestedBid,k.bid]))}
+      if((c.autoTargets||[]).length){a.push(['Targeting group','Bid','What it does']);c.autoTargets.forEach(t=>a.push([t.group,t.bid,t.note]))}if(c.note)a.push([c.note]);a.push([])});
+    (R.negatives||[]).forEach(g=>a.push(['Negatives: '+(g.group||''),(g.terms||[]).join(', ')]));a.push([]);
+    if((R.held||[]).length){a.push(['On hold','Search Volume','When']);R.held.forEach(h=>a.push([h.keyword,h.searchVolume,h.when]));a.push([])}
+    (R.timeline||[]).forEach(t=>a.push([t.day,t.action]));add('PPC Roadmap',a,[34,26,22,40])}
+  Object.keys(SHEET_NAMES).forEach(k=>{const cols=COLS[k];if(!cols||!S.sheet[k]||!S.sheet[k].length)return;
+    add(SHEET_NAMES[k],[['ecommwithtaha · '+SHEET_NAMES[k]],[],cols.map(c=>c[1]),...S.sheet[k].map(r=>cols.map(([c])=>r[c]??''))],cols.map(([c])=>/details|why|outreach|message|description|bullets|risks|notes|questions|images|aplus|reason|send/i.test(c)?50:18))});
+  if(!wb.SheetNames.length){log('System','Nothing to export yet.',null,true);return}
+  XLSX.writeFile(wb,`ecommwithtaha-records-${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
 /* ================= WORKFLOWS ================= */
 async function deliverToRecords(w,tab,rows,label){
   await act(w,async()=>{
@@ -1695,7 +1781,12 @@ async function amazonPipeline(bossTask){
       }finally{src.job=false}
       showTab('final');
     }
-    return{kind:'amazon',who:'Amazon Hunting + Advance Hunting + Sourcing',summary:fin.summary,products:fin.products,suppliers:sres.suppliers,market};
+    let decision=null;
+    if(fin.products.length){const m=P.manager;
+      await handOver(P.amzsrc,m,`${m.name} sahab, sourcing sheet ready hai`,true);
+      decision=await busyWork(m,'Reading the sheet',()=>managerReview(bossTask,fin.products,sres.suppliers,market)).catch(e=>{log(m.name,helpFor(e),null,true);return null});
+      if(decision){log(m.name+' – decision',`${decision.reply}\nWhy: ${decision.reason}\nFirst steps: ${decision.firstSteps}`,'#ffe066');say(m,`Hum ${decision.pick} mein chalte hain ✓`,5000)}}
+    return{kind:'amazon',who:'Amazon Hunting + Advance Hunting + Sourcing',summary:fin.summary,products:fin.products,suppliers:sres.suppliers,market,decision};
   }finally{[...Hs,...As].forEach(p=>{p.job=false;p.typing=false})}
 }
 async function workerJob(w,subtask,bossTask,deps,needKeys){
@@ -1713,38 +1804,40 @@ async function workerJob(w,subtask,bossTask,deps,needKeys){
     return r;
   }finally{w.job=false}
 }
-let running=false;
+let running=false,activeTasks=0;const DEPT_LOCK={};
+function deptRun(k,fn){const prev=DEPT_LOCK[k]||Promise.resolve(),p=prev.then(()=>fn());DEPT_LOCK[k]=p.catch(()=>{});return p}
+const deptBusy=k=>{const ppl={amazon:['hunt1','adv1','amzsrc'],ppc:['ppc','ppca1'],listing:['lst0','lsa1'],clients:['cl1','cl2','cl3','cl4']}[k]||[k];return ppl.some(x=>P[x]&&P[x].job)};
 async function runTask(task,whoKey,mode){
   task=(task||'').trim();if(!task)return;mode=mode||langMode(task);curMode=mode;
   if(office.meeting)await endMeeting(mode,true);
-  if(running){log('System','The team is still working on the last task. Please wait.',null,true);return}
   if(!online){await setOnline(true);if(!online)return}
-  running=office.busy=true;$('runBtn').disabled=true;requestWake();log('You',task,'#e8f4ff');
+  activeTasks++;running=office.busy=true;requestWake();log('You',task,'#e8f4ff');
   say(P.manager,PH.start[mode],2600);speak(PH.start[mode],P.manager,mode,PH.start.hi);let results=[];
   try{
     if(whoKey==='manager'){
       const m=P.manager;await act(m,()=>goSeat(m));
       m.typing=true;m.workText='Planning';let plan;try{plan=await managerPlan(task)}finally{m.typing=false}
-      log(m.name,plan.plan+'\n'+plan.assignments.map(a=>`→ ${deptLabel(a.dept)}: ${a.task}`+(a.needs.length?` [after ${a.needs.map(deptLabel).join(', ')}]`:'')).join('\n'),m.shirt);
+      log(m.name,plan.plan+'\n'+plan.assignments.map(a=>`→ ${deptLabel(a.dept)}: ${a.task}`+(a.needs.length?` [after ${a.needs.map(deptLabel).join(', ')}]`:'')+(deptBusy(a.dept)?' (team is busy, it will start right after)':'')).join('\n'),m.shirt);
       const jobs={};
       for(const a of plan.assignments){
         const w=deptPerson(a.dept);
-        await act(m,async()=>{m.carry=true;say(m,'Going to '+deptLabel(a.dept).split(' →')[0],2000);await goVisit(m,w);say(m,`${w.name}, this one is for your team`,2000);await sleep(1300);m.carry=false;say(w,'On it, sir!',1800);await sleep(700)});
+        await act(m,async()=>{m.carry=true;say(m,'Going to '+deptLabel(a.dept).split(' →')[0],2000);await goVisit(m,w);say(m,`${w.name}, ye kaam aapki team ka hai`,2000);await sleep(1300);m.carry=false;say(w,deptBusy(a.dept)?'Ji, abhi wala khatam karke shuru karte hain':'On it, sir!',1800);await sleep(700)});
         const deps=a.needs.map(k=>jobs[k]).filter(Boolean);
-        jobs[a.dept]=PIPES[a.dept]?(async()=>{await Promise.all(deps);return PIPES[a.dept](a.dept==='ppc'||a.dept==='listing'?a.task+' (boss said: '+task+')':task)})():workerJob(w,a.task,task,deps,a.needs);
+        jobs[a.dept]=deptRun(a.dept,async()=>{await Promise.all(deps);return PIPES[a.dept]?PIPES[a.dept](a.dept==='ppc'||a.dept==='listing'?a.task+' (boss said: '+task+')':a.task||task):workerJob(w,a.task,task,[],a.needs)});
       }
       act(m,()=>goSeat(m));
       results=await Promise.all(Object.values(jobs));
     }else if(PIPES[whoKey]){
-      say(deptPerson(whoKey),'On it! Team, start karo',2000);results=[await PIPES[whoKey](task)];
-    }else{const w=P[whoKey];say(w,'On it!',1500);results=[await workerJob(w,task,task,[],[])]}
+      say(deptPerson(whoKey),deptBusy(whoKey)?'Ji, abhi wala khatam karke shuru karte hain':'On it! Team, start karo',2200);results=[await deptRun(whoKey,()=>PIPES[whoKey](task))];
+    }else{const w=P[whoKey];say(w,'On it!',1500);results=[await deptRun(whoKey,()=>workerJob(w,task,task,[],[]))]}
     const m=P.manager;await act(m,()=>goSeat(m));
     m.typing=true;m.workText='Writing your report';let fin;try{fin=await managerFinal(task,results,mode)}finally{m.typing=false}
     log(m.name+' – report to boss',fin.reply,'#ffe066');say(m,PH.done[mode],4000);speak(fin.reply,m,mode,fin.speech);
     if(results.some(r=>r&&r.kind==='worker'))try{const nm=`ecommwithtaha-report-${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.pdf`;logPdf(await makePdf({task,date:new Date().toLocaleString(),summary:fin.reply,results}),nm)}catch(e){log('System','PDF: '+e.message,null,true)}
     if(S.autoMemory&&!isDemo()){S.memory=(S.memory+`\n- ${new Date().toLocaleDateString()}: did "${task.slice(0,80)}"`).trim();save()}
   }catch(e){log('System',helpFor(e),null,true)}
-  finally{running=office.busy=false;releaseWake();try{growTalent(2,5)}catch(e){}$('runBtn').disabled=false;Object.values(P).forEach(p=>{p.typing=false;if(p.bubble&&p.bubble.text.startsWith('Waiting'))p.bubble=null})}
+  finally{activeTasks=Math.max(0,activeTasks-1);running=office.busy=activeTasks>0;try{growTalent(2,5)}catch(e){}
+    if(!running){releaseWake();Object.values(P).forEach(p=>{p.typing=false;if(p.bubble&&p.bubble.text.startsWith('Waiting'))p.bubble=null})}}
 }
 $('runBtn').onclick=()=>handleInput($('task').value,$('who').value);
 $('meetBtn').onclick=()=>office.meeting?endMeeting(curMode):callMeeting(curMode);
@@ -1908,7 +2001,7 @@ async function callMeeting(mode){
   if(office.busy){log('System','The team is busy with a task. Call the meeting when they finish.',null,true);return}
   if(office.meeting){say(P.manager,PH.ready[mode],3000);return}
   office.meeting=true;$('meetBtn').textContent='✕ End meeting';log('You','Meeting!','#e8f4ff');
-  const m=P.manager;say(m,PH.call[mode],3000);speak(PH.call[mode],m,mode,PH.call.hi);
+  const m=P.manager;say(m,PH.call[mode],3000);
   const order=[m,...Object.values(P).filter(p=>p!==m&&!OBS.includes(p.key)&&!p.visitor)];
   await Promise.all(order.map((p,i)=>act(p,async()=>{if(!office.meeting)return;await sleep(150*i);p.hurry=true;try{if(office.meeting)await goSpotVia(p,'meeting',MEET_SPOTS[Math.min(i,MEET_SPOTS.length-1)])}finally{p.hurry=false}})));
   if(!office.meeting)return;
@@ -1916,7 +2009,7 @@ async function callMeeting(mode){
 }
 async function endMeeting(mode,quiet){
   if(!office.meeting)return;office.meeting=false;$('meetBtn').textContent='📋 Call meeting';
-  mode=mode||curMode;if(!quiet){say(P.manager,PH.end[mode],2500);speak(PH.end[mode],P.manager,mode,PH.end.hi)}
+  mode=mode||curMode;if(!quiet){say(P.manager,PH.end[mode],2500)}
   Object.values(P).forEach(p=>act(p,()=>goSeat(p)));
 }
 
@@ -1957,12 +2050,12 @@ async function handleInput(t,whoKey){
   const named=findPeople(t).filter(p=>!OBS.includes(p.key)),others=named.filter(p=>p.key!=='manager'),target=others[0]||named[0]||null;
   const via=named.some(p=>p.key==='manager')&&others.length?P.manager:null;
   if(office.meeting&&(!TASKY.test(t)||others.length))return askPerson(target||P.manager,t,mode,via);
-  if(target&&(others.length||!TASKY.test(t))&&!running)return askPerson(target,t,mode,via);
+  if(target&&(others.length||!TASKY.test(t)))return askPerson(target,t,mode,via);
   return runTask(t,whoKey,mode);
 }
 
 /* ================= START ================= */
-buildBG();renderWho();h10Label();renderRoster();renderSheet();
+buildBG();renderWho();h10Label();renderDepts();renderRoster();renderSheet();
 document.fonts?.ready.then(()=>{buildBG();drawWires()});setTimeout(drawWires,300);
 PEOPLE0.filter(d=>!OBS.includes(d.key)&&d.key!=='recep').forEach(d=>idleLoop(P[d.key]));cafeLoop(8000);cafeLoop(20000);academyLoop();OBS.forEach((k,i)=>obLoop(P[k],4000+i*2500));drinkLoop();autoLeadLoop();
 if(window.speechSynthesis)speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices();
