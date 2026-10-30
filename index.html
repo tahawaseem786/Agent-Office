@@ -127,7 +127,7 @@ dialog::backdrop{background:#000b}
           <button data-s="clients">Client leads</button>
           <button data-s="findings">Other findings</button>
         </div>
-        <div class="sp"><button class="btn ghost sm" id="xlsBtn">Download Excel</button><button class="btn ghost sm" id="clrSheet">Clear</button></div>
+        <div class="sp"><button class="btn ghost sm" id="xlsBtn">⬇ Download PDF</button><button class="btn ghost sm" id="sendAll">📤 Send all emails</button><button class="btn ghost sm" id="clrSheet">Clear</button></div>
       </div>
       <div class="twrap"><table id="sheetT"></table></div>
     </section>
@@ -721,27 +721,28 @@ COLS.sourcing=[['date','Date'],['name','Product'],['supplierType','Supplier type
 COLS.ebay=[['date','Date'],['hunter','Hunter'],['name','Product'],['soldPrice','Sold price'],['sellThrough','Sell-through'],['supplierPlatform','Supplier'],['supplierCost','Supplier cost'],['shippingDays','Shipping'],['ebayFees','eBay fees'],['profit','Profit'],['verdict','Verdict'],['title','eBay title (SEO)'],['specifics','Item specifics'],['images','Image plan'],['description','Description'],['soldLink','eBay sold search'],['supplierLink','Supplier search']];
 COLS.ppc=[['date','Date'],['asin','ASIN'],['product','Product'],['type','Type'],['item','Keyword / campaign'],['match','Match'],['priority','Priority'],['bid','Bid / budget'],['details','Details']];
 COLS.listing=[['date','Date'],['product','Product'],['title','Title'],['bullets','Bullets'],['description','Description'],['backend','Backend keywords'],['images','Image plan'],['aplus','A+ content']];
-COLS.clients=[['date','Date'],['status','Status'],['fitScore','Fit'],['country','Country'],['agent','Agent'],['segment','Lead target'],['platform','Platform'],['searchQuery','Search'],['whyGoodFit','Why a fit'],['outreach','Outreach message'],['questions','Questions'],['link','Open search'],['sendTo','Send email to'],['email','Email']];
+COLS.clients=[['date','Date'],['status','Status'],['fitScore','Fit'],['country','Country'],['agent','Agent'],['segment','Lead target'],['platform','Platform'],['searchQuery','Search'],['whyGoodFit','Why a fit'],['outreach','Outreach message'],['questions','Questions'],['link','Open search'],['sendTo','Send email to'],['toEmail','To'],['email','Email'],['sent','Sent']];
 const SHEET_NAMES={final:'Amazon final',sourcing:'Amazon sourcing',advanced:'Advanced test',hunted:'Hunted',ebay:'eBay listings',ppc:'PPC plans',listing:'Amazon listings',clients:'Client leads',findings:'Other findings'};
 let sheetTab='final';
 document.querySelectorAll('.stabs button').forEach(bt=>bt.onclick=()=>{sheetTab=bt.dataset.s;document.querySelectorAll('.stabs button').forEach(x=>x.classList.toggle('act',x===bt));renderSheet()});
 function renderSheet(){
   const rows=S.sheet[sheetTab],cols=COLS[sheetTab];
   if(!rows.length){$('sheetT').innerHTML=`<tbody><tr><td class="empty" style="padding:14px">Nothing here yet.</td></tr></tbody>`;return}
-  $('sheetT').innerHTML=`<thead><tr><th>#</th>${cols.map(c=>`<th>${c[1]}</th>`).join('')}</tr></thead><tbody>`+rows.map((r,i)=>`<tr><td class="rownum">${i+1}</td>${cols.map(([k])=>{const v=r[k]??'';
+  const act=sheetTab==='clients';$('sheetT').innerHTML=`<thead><tr><th>#</th>${act?'<th>Send</th>':''}${cols.map(c=>`<th>${c[1]}</th>`).join('')}</tr></thead><tbody>`+rows.map((r,i)=>`<tr><td class="rownum">${i+1}</td>${act?`<td>${r.toEmail?(r.sent?'✓ Sent':ejOk()?`<button class="btn sm" data-send="${i}">📤 Send</button>`:'<span class="note">Set up email</span>'):''}</td>`:''}${cols.map(([k])=>{const v=r[k]??'';
     if(k==='verdict')return `<td class="${/pass/i.test(v)?'pass':'fail'}">${esc(v)}</td>`;
     return `<td>${/^(https?:\/\/|mailto:)/.test(v)?`<a href="${esc(v)}" target="_blank" rel="noopener">${k==='email'?'✉ Write email':'Open'}</a>`:esc(v)}</td>`}).join('')}</tr>`).join('')+'</tbody>';
   const tw=document.querySelector('.twrap');tw.scrollTop=tw.scrollHeight;
 }
+$('sheetT').addEventListener('click',e=>{const b=e.target.closest('[data-send]');if(b){b.disabled=true;b.textContent='Sending…';sendLead(+b.dataset.send)}});
 function showTab(k){sheetTab=k;document.querySelectorAll('.stabs button').forEach(x=>x.classList.toggle('act',x.dataset.s===k));renderSheet()}
 const links=(mk,kw)=>{const d=MARKETS[mk]?.d||'amazon.com',k=encodeURIComponent(kw||'');return{amazonLink:`https://www.${d}/s?k=${k}`,supplierLink:`https://www.alibaba.com/trade/search?SearchText=${k}`}};
 function addRows(tab,rows){S.sheet[tab].push(...rows);if(S.sheet[tab].length>1500)S.sheet[tab]=S.sheet[tab].slice(-1500);save();if(sheetTab===tab)renderSheet()}
-$('xlsBtn').onclick=()=>{
-  const toRows=k=>S.sheet[k].map(r=>Object.fromEntries(COLS[k].map(([a,b])=>[b,r[a]??''])));
-  if(window.XLSX){const wb=XLSX.utils.book_new();Object.keys(SHEET_NAMES).forEach(k=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(toRows(k).length?toRows(k):[{}]),SHEET_NAMES[k]));XLSX.writeFile(wb,'agent-office-records.xlsx');return}
-  const cols=COLS[sheetTab],csv=[cols.map(c=>c[1]).join(',')].concat(S.sheet[sheetTab].map(r=>cols.map(([k])=>`"${String(r[k]??'').replace(/"/g,'""')}"`).join(','))).join('\n');
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.download=`agent-office-${sheetTab}.csv`;a.click();
+$('xlsBtn').onclick=async()=>{
+  const rows=S.sheet[sheetTab];if(!rows.length){log('System','This sheet tab is empty, nothing to download yet.',null,true);return}
+  try{const id=reportId('sheet'),blob=await makePdf({task:'Records sheet: '+SHEET_NAMES[sheetTab],date:new Date().toLocaleString(),summary:`${rows.length} rows from the ${SHEET_NAMES[sheetTab]} tab.`,results:[{kind:'table',title:SHEET_NAMES[sheetTab],cols:COLS[sheetTab],rows}],theme:{...THEMES.general,title:'RECORDS SHEET',dept:'Records & Sheets - '+SHEET_NAMES[sheetTab],agentsText:P.records.name+' (records clerk)',id}});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`ecommwithtaha-${sheetTab}-${id}.pdf`;document.body.appendChild(a);a.click();a.remove()}catch(e){log('System','PDF: '+e.message,null,true)}
 };
+$('sendAll').onclick=()=>{if(!ejOk()){openEmailSetup();return}showTab('clients');sendAllLeads()};
 $('clrSheet').onclick=()=>{if(confirm('Clear all rows in every sheet tab?')){S.sheet=structuredClone(DEFAULT.sheet);save();renderSheet()}};
 
 /* ================= EDITORS ================= */
@@ -1063,6 +1064,7 @@ async function makePdf(rep){
       if(r.adv){y-=4;head('PPC Advanced plan');const A=r.adv;kv('Bid strategy',A.bidStrategy);kv('Placements',A.placements);kv('Match-type strategy',A.matchTypeStrategy);kv('Budget by stage',A.budgetByStage);kv('ACoS targets',A.targetAcos);kv('Harvesting rules',A.harvesting);kv('Negative rules',A.negatives);kv('Dayparting',A.dayparting);kv('Scaling',A.scaling);kv('Weekly checklist',A.weeklyChecklist)}}
     else if(r.kind==='listing'){if(r.comp){head('Step 1 - Competitor research'+(r.comp.asin?' for ASIN '+r.comp.asin:''));kv('Checked',r.comp.live?'Live on the web (Google Search)':'From AI knowledge (not live)');kv('Summary',r.comp.summary);const ML=r.comp.myListing||{};kv('Our current title',ML.title);kv('Our price / rating',[ML.price,ML.rating&&ML.rating+' stars',ML.reviews&&ML.reviews+' reviews'].filter(Boolean).join(' · '));
         (r.comp.competitors||[]).slice(0,6).forEach((c,i)=>kv('Competitor '+(i+1),`${c.title} | ${c.price||'?'} | ${c.rating||'?'} stars | ${c.reviews||'?'} reviews. Strong: ${c.strengths||'-'}. Weak: ${c.weaknesses||'-'}`));(r.comp.sources||[]).slice(0,6).forEach(x=>kv('Source',(x.title||'')+' '+x.url));kv('What top sellers do',r.comp.patterns);kv('Weak spots we beat',r.comp.weaknesses);kv('Competitor keywords',r.comp.keywords);kv('Image ideas',r.comp.imageIdeas);kv('Check on Amazon',r.comp.searchLink);y-=4}head('Step 2 - Our listing (title, bullets, images, A+)');(r.listings||[]).forEach(l=>{need(50);para(l.product||'Listing',11,B);kv('Title',l.title);kv('Bullets',String(l.bullets||'').split('|').map(b=>'- '+b.trim()).join('\n'));kv('Description',l.description);kv('Backend keywords',l.backend);kv('Image plan',l.images);kv('A+ content',l.aplus);kv('Keyword plan',l.keywordPlan);kv('Indexing checks',l.indexingChecks);kv('Competitor gaps',l.competitorGaps);kv('Image fixes',l.imageFixes);kv('A+ fixes',l.aplusFixes);kv('Originality check',l.originality);y-=6})}
+    else if(r.kind==='table'){head(r.title);const tk=r.cols.find(([k])=>/^(name|segment|title|item|product)$/.test(k));(r.rows||[]).forEach((row,i)=>{need(40);para(`${i+1}.  ${tk?row[tk[0]]||'':''}`,10,B);r.cols.forEach(([k,lbl])=>{if(k==='date'||k==='email'||(tk&&k===tk[0]))return;const v=row[k];if(v!==undefined&&v!==null&&String(v).trim()!=='')kv(lbl,v)});kv('Date',row.date);y-=6})}
     else if(r.kind==='clients'){(r.countries||[{country:r.country,agent:r.agent,targets:r.targets}]).forEach(cn=>{head(`Client hunting - ${cn.country}`+(cn.agent?` (by ${cn.agent})`:''));
       para('Lead targets with exact searches. Company emails are only taken from the business\'s own public pages (with Gemini live search) - always verify before sending. Nothing was guessed.',8,F,muted);y-=4;
       (cn.targets||[]).forEach(t=>{need(50);para(t.segment||'',11,B);kv('Result',(+t.fitScore||0)>=7?`PASS (fit ${t.fitScore}/10)`:`Follow-up (fit ${t.fitScore||'?'}/10)`);kv('Platform',t.platform);kv('Search',t.searchQuery);kv('Where to look',t.whereToFind);kv('Why a good fit',t.whyGoodFit);kv('Outreach message',t.outreach);kv('Qualifying questions',t.questions);kv('Open search',t.link);
@@ -1348,7 +1350,7 @@ async function clientsPipeline2(bossTask,only,auto){
   try{
     const out=await Promise.all(team.map(async([country,a])=>{
       let res;try{res=await busyWork(a,'Finding clients',()=>clientCall(a,country,bossTask+focus))}catch(e){log(a.name,helpFor(e),null,true);say(a,'Problem! See log',4000);return null}
-      res.targets=res.targets.map(t=>({...t,country,fitScore:+t.fitScore||(isDemo()?6+Math.floor(Math.random()*4):0),link:leadLink(t)}));res.targets.forEach(t=>{t.companies=(t.companies||[]).filter(c=>c&&c.name).map(checkCompany);t.companies.forEach(c=>{c.compose=leadEmail(t,c)});const m=emailParts(t);t.emailSubject=m.subject;t.emailBody=m.full;t.email=leadEmail(t,t.companies.find(c=>c.email));t.sendTo=t.companies.map(c=>`${c.name}: ${c.email||'(no public email) '+(c.contactPage||c.website||'')}`).join(' | ')});
+      res.targets=res.targets.map(t=>({...t,country,fitScore:+t.fitScore||(isDemo()?6+Math.floor(Math.random()*4):0),link:leadLink(t)}));res.targets.forEach(t=>{t.companies=(t.companies||[]).filter(c=>c&&c.name).map(checkCompany);t.companies.forEach(c=>{c.compose=leadEmail(t,c)});const m=emailParts(t);t.emailSubject=m.subject;t.emailBody=m.full;t.email=leadEmail(t,t.companies.find(c=>c.email));t.toEmail=(t.companies.find(c=>c.email)||{}).email||'';t.sendTo=t.companies.map(c=>`${c.name}: ${c.email||'(no public email) '+(c.contactPage||c.website||'')}`).join(' | ')});
       res.best=[...res.targets].sort((x,y)=>(y.fitScore||0)-(x.fitScore||0))[0];
       log(a.name,`${country}: ${res.summary}\n`+res.targets.map(t=>`• ${t.segment} (${t.platform}) fit ${t.fitScore}/10`).join('\n'),a.shirt);
       if(!res.targets.length)return null;
@@ -1605,14 +1607,33 @@ const hunterLink=d=>`https://hunter.io/search/${encodeURIComponent(d)}`;
 function checkCompany(c){const em=String(c.email||'').trim().toLowerCase(),d=domainOf(c.website||'');let status='No public email found - use the contact page or Hunter.io';
   if(em&&/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(em)){const ed=em.split('@')[1];status=d&&(ed===d||ed.endsWith('.'+d)||d.endsWith('.'+ed))?'Email matches the website domain - verify before sending':'Email domain differs from the website - double-check it';c.email=em}else c.email='';
   return{...c,domain:d,status,hunter:d?hunterLink(d):''}}
+const ejOk=()=>{const j=(S.email||{}).ej||{};return !!(j.service&&j.template&&j.key)};
+async function sendEmail(to,subject,message){const e=S.email||{},j=e.ej||{};if(!ejOk())throw new Error('Email sending is not set up yet. Open ✉ Email setup.');
+  const r=await fetch('https://api.emailjs.com/api/v1.0/email/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service_id:j.service,template_id:j.template,user_id:j.key,template_params:{to_email:to,subject,message,from_name:e.name||e.company||'',reply_to:e.from||''}})});
+  if(!r.ok)throw new Error('Email not sent: '+r.status+' '+(await r.text()).slice(0,160));return true}
+const OPTOUT="\n\nIf you'd rather not hear from us, just reply 'no thanks' and we won't email again.";
+async function sendLead(i,silent){const row=S.sheet.clients[i];if(!row||!row.toEmail)return false;
+  try{await sendEmail(row.toEmail,row.emailSubject||'Quick idea for your Amazon brand',(row.emailBody||row.outreach||'')+OPTOUT);row.sent=new Date().toLocaleString();save();renderSheet();if(!silent)log('System',`Email sent from your account to ${row.toEmail} (${row.sendTo?String(row.sendTo).split(':')[0]:''}).`,'#5dff8f');return true}
+  catch(e){log('System',e.message,null,true);return false}}
+async function sendAllLeads(){const list=S.sheet.clients.map((r,i)=>[r,i]).filter(([r])=>r.toEmail&&!r.sent);
+  if(!list.length){log('System','No unsent leads with a public email right now.',null,true);return}
+  const batch=list.slice(0,20);if(!confirm(`Send ${batch.length} email(s) from your own email now?\n\n`+batch.map(([r])=>'• '+r.toEmail).join('\n')))return;
+  let ok=0;for(const [,i] of batch){if(await sendLead(i,true))ok++;await nap(4000)}log('System',`Sent ${ok} of ${batch.length} emails from your account.`,'#5dff8f')}
 function openEmailSetup(){const e=S.email||{app:'gmail'},B=$('dlgBody');$('dlgTitle').textContent='Email setup';onSave=null;
-  B.innerHTML=`<p class="note">Agents write a personal email for every lead. Clicking “✉ Write email” opens your own Gmail (or mail app) with the email ready. You add the person's address and press Send yourself, so nothing is ever sent without you.</p>
+  B.innerHTML=`<p class="note">Agents write a personal email for every lead that has a public business email. Set up sending below and use 📤 Send (one lead) or 📤 Send all emails in the Client leads tab: the email goes out from your own address. Without that setup, “✉ Write email” opens your Gmail with everything filled in.</p>
   <div class="two"><div><label>Your name</label><input id="e_name" value="${esc(e.name||'')}"></div><div><label>Company</label><input id="e_comp" value="${esc(e.company||'ecommwithtaha')}"></div></div>
   <div class="two"><div><label>Your Gmail (to pick the right account)</label><input id="e_from" value="${esc(e.from||'')}" placeholder="you@gmail.com"></div><div><label>Open emails in</label><select id="e_app"><option value="gmail" ${e.app!=='mailto'?'selected':''}>Gmail (web)</option><option value="mailto" ${e.app==='mailto'?'selected':''}>My default mail app</option></select></div></div>
   <div class="two"><div><label>Phone / WhatsApp</label><input id="e_phone" value="${esc(e.phone||'')}"></div><div><label>Website</label><input id="e_site" value="${esc(e.site||'')}"></div></div>
   <div><label>Subject</label><input id="e_subj" value="${esc(e.subject||'Quick idea for your Amazon brand')}"></div>
-  <div><label>Your offer line</label><input id="e_offer" value="${esc(e.offer||'Happy to share a free audit of your Amazon listing and PPC.')}"></div>`;
-  $('dlgSave').textContent='Save';onSave=()=>{S.email={name:$('e_name').value,company:$('e_comp').value,from:$('e_from').value.trim(),app:$('e_app').value,phone:$('e_phone').value,site:$('e_site').value,subject:$('e_subj').value,offer:$('e_offer').value}};$('dlg').showModal()}
+  <div><label>Your offer line</label><input id="e_offer" value="${esc(e.offer||'Happy to share a free audit of your Amazon listing and PPC.')}"></div>
+  <h3 style="margin-top:6px">Send from my email automatically</h3>
+  <p class="note">Free with EmailJS (200 emails a month). 1) Sign up at emailjs.com. 2) Email Services → Add New Service → Gmail → connect your Gmail → copy the <b>Service ID</b>. 3) Email Templates → Create Template: set To Email = <code>{{to_email}}</code>, Subject = <code>{{subject}}</code>, Content = <code>{{message}}</code>, From Name = <code>{{from_name}}</code>, Reply To = <code>{{reply_to}}</code> → Save → copy the <b>Template ID</b>. 4) Account → copy your <b>Public Key</b>. Paste them here.</p>
+  <div class="two"><div><label>Service ID</label><input id="ej_s" value="${esc((e.ej||{}).service||'')}"></div><div><label>Template ID</label><input id="ej_t" value="${esc((e.ej||{}).template||'')}"></div></div>
+  <div><label>Public Key</label><input id="ej_k" value="${esc((e.ej||{}).key||'')}"></div>
+  <button class="btn ghost sm" id="ej_test" type="button">Send a test email to my Gmail</button><span class="note" id="ej_msg"></span>`;
+  $('ej_test').onclick=async()=>{const tmp=S.email;S.email={...(S.email||{}),name:$('e_name').value,from:$('e_from').value.trim(),ej:{service:$('ej_s').value.trim(),template:$('ej_t').value.trim(),key:$('ej_k').value.trim()}};
+    try{if(!S.email.from)throw new Error('Write your Gmail above first.');await sendEmail(S.email.from,'Test from AI Agent Office','It works! Your agents can now send emails from this address.');$('ej_msg').textContent=' ✓ Sent. Check your inbox.'}catch(err){$('ej_msg').textContent=' '+err.message}finally{S.email=tmp}};
+  $('dlgSave').textContent='Save';onSave=()=>{S.email={name:$('e_name').value,company:$('e_comp').value,from:$('e_from').value.trim(),app:$('e_app').value,phone:$('e_phone').value,site:$('e_site').value,subject:$('e_subj').value,offer:$('e_offer').value,ej:{service:$('ej_s').value.trim(),template:$('ej_t').value.trim(),key:$('ej_k').value.trim()}};renderSheet()};$('dlg').showModal()}
 
 /* ================= WORKFLOWS ================= */
 async function deliverToRecords(w,tab,rows,label){
@@ -1751,6 +1772,7 @@ function speak(text,p,mode,speech){
   const u=new SpeechSynthesisUtterance(String(t).replace(/[#*_`>|•→★✓]/g,'').replace(/\s+/g,' ').slice(0,700));
   if(v){u.voice=v;u.lang=v.lang}else u.lang=lang;
   const hk=keyHash(p.key);u.pitch=fem?1.05+(hk%41)/100:0.62+(hk%39)/100;u.rate=0.9+((hk>>3)%21)/100;
+  window._spkUntil=Date.now()+Math.min(30000,900+String(t).length*75);u.onend=u.onerror=()=>{window._spkUntil=Date.now()+400};
   speechSynthesis.cancel();setTimeout(()=>speechSynthesis.speak(u),60);
 }
 $('micBtn').onclick=()=>{
@@ -1772,22 +1794,24 @@ $('micBtn').onclick=()=>{
 $('lang').onchange=()=>{try{localStorage.setItem(KEY+'-lang',$('lang').value)}catch(e){};if(wake.on){stopWake();setTimeout(startWake,500)}};
 /* ---- "Hey AI" wake word: always listening, no clicking ---- */
 const wake={on:false,rec:null,armedUntil:0};
-const WAKE_RE=/(?:\b(?:hey|hi|hay|hai|he|ok|okay)[\s,]*(?:a\.?\s?i\b|ai\b|aye\b|eye\b|e\.?\s?i\b)|(?:हे|है|हाय|हेलो|हेय)\s*(?:एआई|ए\s?आई|ए\.आई|ai)|(?:ہے|ہائے|ہیلو|ہے\s?ے)\s*(?:اے\s?آئی|ای\s?آئی|اےآئی))/i;
+const WAKE_RE=/(?:\b(?:hey|hi|hay|hai|he|hello|ok|okay)[\s,.]*(?:a\.?\s?i\b|ai\b|aye\b|eye\b|e\.?\s?i\b|office\b|arif\b)|(?:हे|है|हाय|हेलो|हेय|हेलो)\s*(?:एआई|ए\s?आई|ए\.आई|ऑफिस|आरिफ|अरिफ)|(?:ہے|ہائے|ہیلو)\s*(?:اے\s?آئی|ای\s?آئی|اےآئی|آفس|عارف))/i;
+const WAKE_SHORT=/^\s*(?:hey|hi|hay|hello|हे|है|हाय|ہے|ہائے)[\s,.]*(?:i|आई|ऐ|آئی)[\s.!?]*$/i;
 let actx=null;function chime(n=1){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume();for(let i=0;i<n;i++){const o=actx.createOscillator(),g2=actx.createGain(),t0=actx.currentTime+i*0.16;o.frequency.value=i?1180:880;g2.gain.setValueAtTime(0.0001,t0);g2.gain.exponentialRampToValueAtTime(0.18,t0+0.02);g2.gain.exponentialRampToValueAtTime(0.0001,t0+0.14);o.connect(g2).connect(actx.destination);o.start(t0);o.stop(t0+0.15)}}catch(e){}}
 function wakeUI(msg){$('heard').innerHTML=`<span class="wake-dot ${wake.on&&wake.rec?'on':''}"></span>${esc(msg||'')}`}
 function startWake(){
   if(!SR){wakeUI('Hands-free needs Chrome or Edge.');return}
   if(!wake.on||wake.rec||listening)return;
-  const r=new SR();r.lang=$('lang').value;r.continuous=true;r.interimResults=false;wake.rec=r;
+  const r=new SR();r.lang=$('lang').value;r.continuous=true;r.interimResults=true;wake.rec=r;
   r.onstart=()=>wakeUI('Say “Hey AI”…');
-  r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)onHeard(e.results[i][0].transcript.trim())};
-  r.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){wake.on=false;$('wakeOn').checked=false;wakeUI('Microphone blocked. Allow the mic for this site, then tick “Hey AI” again.')}};
+  r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++){const tx=e.results[i][0].transcript.trim();if(e.results[i].isFinal)onHeard(tx);else if(Date.now()>=(window._spkUntil||0))wakeUI('Hearing: '+tx)}};
+  r.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){wake.on=false;$('wakeOn').checked=false;wakeUI('Microphone blocked. Allow the mic for this site, then tick “Hey AI” again.')}else if(e.error==='network')wakeUI('Voice needs internet. Retrying…');else if(e.error==='audio-capture')wakeUI('No microphone found. Check your mic in Mac settings.')};
   r.onend=()=>{if(wake.rec===r)wake.rec=null;if(wake.on&&!listening)setTimeout(startWake,400);else wakeUI('')};
   try{r.start()}catch(e){wake.rec=null}
 }
 function stopWake(){const r=wake.rec;wake.rec=null;if(r)try{r.abort()}catch(e){}}
 function onHeard(t){
-  if(window.speechSynthesis&&speechSynthesis.speaking)return;
+  if(Date.now()<(window._spkUntil||0))return;
+  if(WAKE_SHORT.test(t)){wake.armedUntil=Date.now()+9000;chime(1);say(P.manager,curMode==='en'?'Yes boss?':'Ji boss? Boliye',3000);wakeUI('Hey AI ✓ – boliye…');return}
   const m=t.match(WAKE_RE);
   if(m){const rest=t.slice(m.index+m[0].length).replace(/^[\s,.!?،۔]+/,'').trim();
     if(rest.length>2)return runVoice(rest);
