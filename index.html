@@ -65,6 +65,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.45}
 .mic{width:44px;height:44px;flex:none;border-radius:50%;border:2px solid var(--cyan);background:#050b14;color:var(--cyan);font-size:18px}
 .mic.rec{border-color:var(--red);color:var(--red);animation:pulse 1.2s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 #ff5d6c88}100%{box-shadow:0 0 0 14px #ff5d6c00}}
+.wake-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:middle}.wake-dot.on{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 1.6s infinite}
 .heard{font-family:var(--term);font-size:18px;color:var(--yellow);min-height:18px}
 .toggles{display:flex;gap:14px;flex-wrap:wrap}
 .toggles label{display:flex;gap:6px;align-items:center;margin:0;font-size:12.5px}
@@ -167,6 +168,7 @@ dialog::backdrop{background:#000b}
         <label><input type="checkbox" id="autoRun" checked> Run after I speak</label>
         <label><input type="checkbox" id="speakOut" checked> Speak answers</label>
         <label><input type="checkbox" id="autoPdf" checked> PDF report after every task</label>
+        <label><input type="checkbox" id="wakeOn"> 🎙 “Hey AI” hands-free</label>
       </div>
       <div class="row">
         <button class="btn" id="runBtn" style="flex:1">Send task</button>
@@ -181,6 +183,11 @@ dialog::backdrop{background:#000b}
         <button class="btn ghost sm" id="ppcTool" style="flex:1">🛠 PPC tool</button>
         <button class="btn ghost sm" id="listTool" style="flex:1">🛠 Listing tool</button>
         <button class="btn ghost sm" id="clientTool" style="flex:1">🛠 Client tool</button>
+      </div>
+      <div class="row">
+        <button class="btn ghost sm" id="h10Btn" style="flex:1">📥 Helium 10 data</button>
+        <button class="btn ghost sm" id="mailBtn" style="flex:1">✉ Email setup</button>
+        <input type="file" id="h10File" accept=".csv,.xlsx,.xls" hidden>
       </div>
       <p class="note">Talk to anyone by name: “Ayesha, ye product fail kyun hua?” · Say “meeting” to gather everyone, “meeting khatam” to send them back.</p>
     </section>
@@ -345,7 +352,7 @@ const SKILL0={manager:'Managing the team: understanding the boss, giving work to
   records:'Records: filing work into the sheet and reading numbers from it',hunt1:'Amazon product hunting (home, kitchen, organization)',hunt2:'Amazon product hunting (pets, sports, fitness, outdoor)',
   hunt3:'Amazon product hunting (office, travel, baby non-gated, gifts)',listing:'Amazon listing optimization: title, bullets, description, backend keywords, images',ppc:'Amazon PPC: keywords and campaign plans from an ASIN',ebay1:'eBay dropshipping product hunting (home, garden, tools, auto)',ebay2:'eBay dropshipping product hunting (pets, beauty, gadgets, fitness)',ebay3:'eBay SEO titles and item specifics',ebay4:'eBay listing images and descriptions',ebaysrc:'eBay dropship sourcing: wholesale suppliers, costs, shipping, pass or fail',amzsrc:'Amazon sourcing: verified Alibaba manufacturer search and supplier checklist',trainer:'Training new agents and judging their talent',listing2:'Amazon listing images and A+ content',ppc2:'Amazon PPC campaign structure, bids and budgets',cl1:'Finding agency clients in the USA',cl2:'Finding agency clients in the UK',cl3:'Finding agency clients in the UAE',cl4:'Finding agency clients in Pakistan',ob1:'Office boy: cleaning and bringing tea, coffee and water',ppca1:'PPC advanced: bid strategy, placements and budget by launch stage',ppca2:'PPC advanced: optimization rules, negatives, dayparting and scaling',lsa1:'Listing advanced: SEO keyword indexing and backend audit',lsa2:'Listing advanced: conversion audit vs competitors',recep:'Reception: welcoming visitors and leads',lst0:'Competitor research for Amazon listings',ppc3:'PPC product and category targeting, Sponsored Brands/Display',src2:'Sourcing costing: landed cost, MOQ and negotiation',src3:'Sourcing quality: compliance, samples, inspection and FBA prep',ob2:'Office boy: cleaning and bringing tea, coffee and water',ob3:'Office boy: cleaning and bringing tea, coffee and water',ob4:'Office boy: cleaning and bringing tea, coffee and water',ob5:'Office boy: cleaning and bringing tea, coffee and water',adv1:'Advanced testing of Amazon products: profit, ROI, PPC and final selection',adv2:'Advanced testing of Amazon products: competition and reviews',adv3:'Advanced testing of Amazon products: risks, patents, gating and sourcing'};
 const FEMALE=new Set(['content','lst0','src3','records','hunt3','adv2','listing','listing2','cl3','ppca2','lsa1','recep']);
-const ALIASES={manager:['आरिफ','عارف','aarif'],research:['अली','علی'],content:['सारा','سارہ','sarah'],marketing:['ज़ारा','जारा','زارا','zahra'],review:['हमज़ा','हमजा','حمزہ'],records:['नादिया','نادیہ'],
+const ALIASES={manager:['आरिफ','अरिफ','आरिफ़','عارف','aarif'],research:['अली','علی'],content:['सारा','سارہ','sarah'],marketing:['ज़ारा','जारा','زارا','zahra'],review:['हमज़ा','हमजा','حمزہ'],records:['नादिया','نادیہ'],
   hunt1:['बिलाल','بلال'],hunt2:['उस्मान','عثمان'],hunt3:['फातिमा','फ़ातिमा','فاطمہ'],adv1:['कामरान','کامران'],adv2:['आयशा','आइशा','عائشہ','aisha'],adv3:['दानिश','دانش'],
   listing:['सना','ثنا'],ppc:['फ़ैसल','फैसल','فیصل'],ebay1:['हसन','حسن'],ebay2:['मरियम','مریم','maryam'],ebay3:['साद','سعد'],ebay4:['हिरा','हीरा','حرا'],ebaysrc:['असद','اسد'],amzsrc:['नोमान','نعمان'],trainer:['रेहान','ریحان'],listing2:['अनम','انعم'],ppc2:['ज़ैन','जैन','زین'],cl1:['दानियाल','دانیال','daniyal'],cl2:['अयान','ایان'],cl3:['रिदा','ردا'],cl4:['काशिफ','کاشف'],ob1:['शकील','شکیل'],ob2:['रफ़ीक','रफीक','رفیق'],ppca1:['हम्माद','حماد'],ppca2:['सादिया','سعدیہ'],lsa1:['बुशरा','بشریٰ','بشری'],lsa2:['तलाल','طلال'],recep:['आयला','آئلہ','ayla'],lst0:['हिबा','ہبہ'],ppc3:['रिज़वान','रिजवान','رضوان'],src2:['फ़रहान','फरहान','فرحان'],src3:['महविश','مہوش']};
 const FRIENDS=[['research','content'],['lst0','hunt3'],['src2','src3'],['hunt1','hunt2'],['adv1','review'],['adv2','records'],['adv3','manager'],['listing','ppc'],['ppca1','ppca2'],['lsa1','lsa2'],['listing2','ppc2'],['cl1','cl2'],['cl3','cl4']];
@@ -714,7 +721,7 @@ COLS.sourcing=[['date','Date'],['name','Product'],['supplierType','Supplier type
 COLS.ebay=[['date','Date'],['hunter','Hunter'],['name','Product'],['soldPrice','Sold price'],['sellThrough','Sell-through'],['supplierPlatform','Supplier'],['supplierCost','Supplier cost'],['shippingDays','Shipping'],['ebayFees','eBay fees'],['profit','Profit'],['verdict','Verdict'],['title','eBay title (SEO)'],['specifics','Item specifics'],['images','Image plan'],['description','Description'],['soldLink','eBay sold search'],['supplierLink','Supplier search']];
 COLS.ppc=[['date','Date'],['asin','ASIN'],['product','Product'],['type','Type'],['item','Keyword / campaign'],['match','Match'],['priority','Priority'],['bid','Bid / budget'],['details','Details']];
 COLS.listing=[['date','Date'],['product','Product'],['title','Title'],['bullets','Bullets'],['description','Description'],['backend','Backend keywords'],['images','Image plan'],['aplus','A+ content']];
-COLS.clients=[['date','Date'],['status','Status'],['fitScore','Fit'],['country','Country'],['agent','Agent'],['segment','Lead target'],['platform','Platform'],['searchQuery','Search'],['whyGoodFit','Why a fit'],['outreach','Outreach message'],['questions','Questions'],['link','Open search']];
+COLS.clients=[['date','Date'],['status','Status'],['fitScore','Fit'],['country','Country'],['agent','Agent'],['segment','Lead target'],['platform','Platform'],['searchQuery','Search'],['whyGoodFit','Why a fit'],['outreach','Outreach message'],['questions','Questions'],['link','Open search'],['sendTo','Send email to'],['email','Email']];
 const SHEET_NAMES={final:'Amazon final',sourcing:'Amazon sourcing',advanced:'Advanced test',hunted:'Hunted',ebay:'eBay listings',ppc:'PPC plans',listing:'Amazon listings',clients:'Client leads',findings:'Other findings'};
 let sheetTab='final';
 document.querySelectorAll('.stabs button').forEach(bt=>bt.onclick=()=>{sheetTab=bt.dataset.s;document.querySelectorAll('.stabs button').forEach(x=>x.classList.toggle('act',x===bt));renderSheet()});
@@ -723,7 +730,7 @@ function renderSheet(){
   if(!rows.length){$('sheetT').innerHTML=`<tbody><tr><td class="empty" style="padding:14px">Nothing here yet.</td></tr></tbody>`;return}
   $('sheetT').innerHTML=`<thead><tr><th>#</th>${cols.map(c=>`<th>${c[1]}</th>`).join('')}</tr></thead><tbody>`+rows.map((r,i)=>`<tr><td class="rownum">${i+1}</td>${cols.map(([k])=>{const v=r[k]??'';
     if(k==='verdict')return `<td class="${/pass/i.test(v)?'pass':'fail'}">${esc(v)}</td>`;
-    return `<td>${/^https?:\/\//.test(v)?`<a href="${esc(v)}" target="_blank" rel="noopener">Open</a>`:esc(v)}</td>`}).join('')}</tr>`).join('')+'</tbody>';
+    return `<td>${/^(https?:\/\/|mailto:)/.test(v)?`<a href="${esc(v)}" target="_blank" rel="noopener">${k==='email'?'✉ Write email':'Open'}</a>`:esc(v)}</td>`}).join('')}</tr>`).join('')+'</tbody>';
   const tw=document.querySelector('.twrap');tw.scrollTop=tw.scrollHeight;
 }
 function showTab(k){sheetTab=k;document.querySelectorAll('.stabs button').forEach(x=>x.classList.toggle('act',x.dataset.s===k));renderSheet()}
@@ -779,7 +786,8 @@ function openEditor(k){
   $('dlg').showModal();
 }
 document.querySelectorAll('.node').forEach(n=>n.onclick=()=>openEditor(n.dataset.k));
-$('teamBtn').onclick=()=>openEditor('team');$('ppcTool').onclick=()=>openTool('ppctool');$('listTool').onclick=()=>openTool('listtool');$('clientTool').onclick=()=>openTool('clienttool');$('acadBtn').onclick=()=>openEditor('academy');$('amzBtn').onclick=()=>openEditor('amazon');
+$('teamBtn').onclick=()=>openEditor('team');$('mailBtn').onclick=openEmailSetup;$('h10Btn').onclick=()=>$('h10File').click();
+$('h10File').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const rows=await importH10(f);h10Label();log('System',`Helium 10 data loaded from ${f.name}: ${rows.length} keywords. Top: `+rows.slice(0,5).map(r=>`${r.kw} (${r.sv})`).join(', ')+'. PPC and Listing teams will now use these real search volumes.','#5dff8f')}catch(err){log('System','Helium 10 import: '+err.message,null,true)}e.target.value=''};$('ppcTool').onclick=()=>openTool('ppctool');$('listTool').onclick=()=>openTool('listtool');$('clientTool').onclick=()=>openTool('clienttool');$('acadBtn').onclick=()=>openEditor('academy');$('amzBtn').onclick=()=>openEditor('amazon');
 $('dlgCancel').onclick=()=>$('dlg').close();
 $('dlgSave').onclick=()=>{onSave&&onSave();save();$('dlg').close()};
 
@@ -1010,7 +1018,7 @@ async function makePdf(rep){
   doc.setTitle('ecommwithtaha - AI Agent Office report');doc.setAuthor('ecommwithtaha');
   const TH=rep.theme||{color:[0.04,0.07,0.13],title:'AI AGENT OFFICE'},tc=rgb(...TH.color);
   const Wp=595,Hp=842,M=44,ink=rgb(0.12,0.14,0.2),muted=rgb(0.42,0.46,0.55),accent=tc,red=rgb(0.76,0.1,0.12);let page,y;
-  const wrap=(text,f,size,maxW)=>{const out=[];pclean(text).split('\n').forEach(par=>{let line='';par.split(' ').forEach(w=>{const t=line?line+' '+w:w;if(f.widthOfTextAtSize(t,size)>maxW&&line){out.push(line);line=w}else line=t});out.push(line)});return out};
+  const wrap=(text,f,size,maxW)=>{const out=[];pclean(text).split('\n').forEach(par=>{let line='';par.split(' ').flatMap(w=>{if(f.widthOfTextAtSize(w,size)<=maxW)return[w];const parts=[];let cur='';for(const ch of w){if(f.widthOfTextAtSize(cur+ch,size)>maxW){parts.push(cur);cur=ch}else cur+=ch}if(cur)parts.push(cur);return parts}).forEach(w=>{const t=line?line+' '+w:w;if(f.widthOfTextAtSize(t,size)>maxW&&line){out.push(line);line=w}else line=t});out.push(line)});return out};
   function stamp(pg){const cx=Wp-118,cy=Hp-52,th=-9,rad=th*Math.PI/180,c=Math.cos(rad),s=Math.sin(rad);
     const rect=(w,h,bw,fill)=>pg.drawRectangle({x:cx-(w/2)*c+(h/2)*s,y:cy-(w/2)*s-(h/2)*c,width:w,height:h,rotate:degrees(th),borderColor:red,borderWidth:bw,color:fill?rgb(1,0.97,0.96):undefined,opacity:fill?0.95:undefined});
     rect(178,60,2.6,true);rect(168,50,0.9,false);
@@ -1046,15 +1054,21 @@ async function makePdf(rep){
     else if(r.kind==='ebay'){head('eBay dropshipping - ready listings');if(!(r.listings||[]).length)para(r.summary||'No product passed eBay sourcing this time.');
       (r.listings||[]).forEach(x=>{need(50);para(x.name,11,B);kv('Sold price',x.soldPrice);kv('Sell-through',x.sellThrough);kv('Supplier',x.supplierPlatform);kv('Supplier cost',x.supplierCost);kv('Shipping',x.shippingDays);kv('eBay fees',x.ebayFees);kv('Profit',x.profit);kv('eBay title',x.title);kv('Item specifics',x.specifics);kv('Image plan',x.images);kv('Description',x.description);kv('Check sold listings',x.soldLink);kv('Supplier search',x.supplierLink);y-=6})}
     else if(r.kind==='ppc'){head('Amazon PPC plan'+(r.asin?' - '+r.asin:''));if(!r.plan){para(r.summary);continue}
+      if(r.plan.research){const R=r.plan.research,ML=R.myListing||{};para('ASIN check',10,B);kv('Checked',R.live?'Live on the web (Google Search)':'From AI knowledge (not live)');kv('Title',ML.title);kv('Price / rating',[ML.price,ML.rating&&ML.rating+' stars',ML.reviews&&ML.reviews+' reviews'].filter(Boolean).join(' · '));kv('Category',ML.category);(R.competitors||[]).slice(0,5).forEach((c,i)=>kv('Competitor '+(i+1),`${c.title} | ${c.price||'?'} | ${c.rating||'?'} stars`));(R.sources||[]).slice(0,5).forEach(x=>kv('Source',(x.title||'')+' '+x.url));y-=4}
+      if(S.h10&&S.h10.rows&&S.h10.rows.length)kv('Keyword data','Helium 10 export: '+S.h10.file);
       para(r.plan.summary||'',9);y-=4;para('Keywords',10,B);r.plan.keywords.forEach(k=>para(`- ${k.keyword}   [${k.match}]   ${k.priority||''}   bid ${k.bid||''}`,9,F,ink,8));y-=4;
       para('Campaigns',10,B);(r.plan.campaigns||[]).forEach(c=>para(`- ${c.name} | ${c.type} | ${c.budget} | ${c.notes||''}`,9,F,ink,8));y-=2;
       kv('Negative keywords',r.plan.negatives);kv('4-week plan',r.plan.plan);const TG=r.plan.targeting||{};if(Object.keys(TG).length){y-=4;para('Targeting',10,B);kv('Product targeting',TG.productTargeting);kv('Category targeting',TG.categoryTargeting);kv('Sponsored Brands',TG.sponsoredBrands);kv('Sponsored Display',TG.sponsoredDisplay);kv('Forecast',TG.forecast)}y-=4;if(r.review)para('Advanced test',10,B);
       const v=r.review||{};kv('Verdict',v.verdict);kv('Score',v.score);kv('Issues',v.issues);kv('Fixes',v.fixes);kv('Target ACoS',v.targetAcos);
       if(r.adv){y-=4;head('PPC Advanced plan');const A=r.adv;kv('Bid strategy',A.bidStrategy);kv('Placements',A.placements);kv('Match-type strategy',A.matchTypeStrategy);kv('Budget by stage',A.budgetByStage);kv('ACoS targets',A.targetAcos);kv('Harvesting rules',A.harvesting);kv('Negative rules',A.negatives);kv('Dayparting',A.dayparting);kv('Scaling',A.scaling);kv('Weekly checklist',A.weeklyChecklist)}}
-    else if(r.kind==='listing'){if(r.comp){head('Step 1 - Competitor research');kv('Summary',r.comp.summary);kv('What top sellers do',r.comp.patterns);kv('Weak spots we beat',r.comp.weaknesses);kv('Competitor keywords',r.comp.keywords);kv('Image ideas',r.comp.imageIdeas);kv('Check on Amazon',r.comp.searchLink);y-=4}head('Step 2 - Our listing (title, bullets, images, A+)');(r.listings||[]).forEach(l=>{need(50);para(l.product||'Listing',11,B);kv('Title',l.title);kv('Bullets',String(l.bullets||'').split('|').map(b=>'- '+b.trim()).join('\n'));kv('Description',l.description);kv('Backend keywords',l.backend);kv('Image plan',l.images);kv('A+ content',l.aplus);kv('Keyword plan',l.keywordPlan);kv('Indexing checks',l.indexingChecks);kv('Competitor gaps',l.competitorGaps);kv('Image fixes',l.imageFixes);kv('A+ fixes',l.aplusFixes);y-=6})}
+    else if(r.kind==='listing'){if(r.comp){head('Step 1 - Competitor research'+(r.comp.asin?' for ASIN '+r.comp.asin:''));kv('Checked',r.comp.live?'Live on the web (Google Search)':'From AI knowledge (not live)');kv('Summary',r.comp.summary);const ML=r.comp.myListing||{};kv('Our current title',ML.title);kv('Our price / rating',[ML.price,ML.rating&&ML.rating+' stars',ML.reviews&&ML.reviews+' reviews'].filter(Boolean).join(' · '));
+        (r.comp.competitors||[]).slice(0,6).forEach((c,i)=>kv('Competitor '+(i+1),`${c.title} | ${c.price||'?'} | ${c.rating||'?'} stars | ${c.reviews||'?'} reviews. Strong: ${c.strengths||'-'}. Weak: ${c.weaknesses||'-'}`));(r.comp.sources||[]).slice(0,6).forEach(x=>kv('Source',(x.title||'')+' '+x.url));kv('What top sellers do',r.comp.patterns);kv('Weak spots we beat',r.comp.weaknesses);kv('Competitor keywords',r.comp.keywords);kv('Image ideas',r.comp.imageIdeas);kv('Check on Amazon',r.comp.searchLink);y-=4}head('Step 2 - Our listing (title, bullets, images, A+)');(r.listings||[]).forEach(l=>{need(50);para(l.product||'Listing',11,B);kv('Title',l.title);kv('Bullets',String(l.bullets||'').split('|').map(b=>'- '+b.trim()).join('\n'));kv('Description',l.description);kv('Backend keywords',l.backend);kv('Image plan',l.images);kv('A+ content',l.aplus);kv('Keyword plan',l.keywordPlan);kv('Indexing checks',l.indexingChecks);kv('Competitor gaps',l.competitorGaps);kv('Image fixes',l.imageFixes);kv('A+ fixes',l.aplusFixes);kv('Originality check',l.originality);y-=6})}
     else if(r.kind==='clients'){(r.countries||[{country:r.country,agent:r.agent,targets:r.targets}]).forEach(cn=>{head(`Client hunting - ${cn.country}`+(cn.agent?` (by ${cn.agent})`:''));
-      para('These are lead TARGETS with exact searches. Open each link and collect the real businesses yourself; no contact details were invented.',8,F,muted);y-=4;
-      (cn.targets||[]).forEach(t=>{need(50);para(t.segment||'',11,B);kv('Result',(+t.fitScore||0)>=7?`PASS (fit ${t.fitScore}/10)`:`Follow-up (fit ${t.fitScore||'?'}/10)`);kv('Platform',t.platform);kv('Search',t.searchQuery);kv('Where to look',t.whereToFind);kv('Why a good fit',t.whyGoodFit);kv('Outreach message',t.outreach);kv('Qualifying questions',t.questions);kv('Open search',t.link);y-=6})})}
+      para('Lead targets with exact searches. Company emails are only taken from the business\'s own public pages (with Gemini live search) - always verify before sending. Nothing was guessed.',8,F,muted);y-=4;
+      (cn.targets||[]).forEach(t=>{need(50);para(t.segment||'',11,B);kv('Result',(+t.fitScore||0)>=7?`PASS (fit ${t.fitScore}/10)`:`Follow-up (fit ${t.fitScore||'?'}/10)`);kv('Platform',t.platform);kv('Search',t.searchQuery);kv('Where to look',t.whereToFind);kv('Why a good fit',t.whyGoodFit);kv('Outreach message',t.outreach);kv('Qualifying questions',t.questions);kv('Open search',t.link);
+        const ep=t.emailSubject?{subject:t.emailSubject,full:t.emailBody}:emailParts(t);y-=2;para('EMAIL TO SEND',9,B,accent,10);kv('Subject',ep.subject);kv('Message',ep.full);
+        if((t.companies||[]).length)t.companies.forEach((c,i)=>{kv('Send to '+(i+1),`${c.name} - ${c.email||'no public email found'}`);kv('Website',c.website);kv('Contact page',c.contactPage);kv('Found on',c.sourceUrl);kv('Email check',c.status);if(c.hunter)kv('Find email (Hunter.io)',c.hunter)});
+        else kv('Send to','No company names in this run. Open the search link, pick businesses, and find their email on their contact page or with Hunter.io (hunter.io).');y-=6})})}
     else{head(r.who||'Team work');para(r.summary||'',10);(r.items||[]).forEach(it=>{para('- '+(it.title||''),10,B);para(it.details||'',9,F,ink,10);if(it.link)para(it.link,8,F,muted,10)})}
   }
   for(const r of rep.results){if(!r||r.kind!=='listing')continue;for(const l of r.listings||[]){if(!(l.infoImgs||[]).length)continue;
@@ -1144,11 +1158,18 @@ function leadLink(t){const raw=String(t.searchQuery||t.segment||''),q=encodeURIC
   if(p.includes('shopify'))return `https://www.google.com/search?q=${encodeURIComponent('site:myshopify.com '+raw)}`;
   if(p.includes('map'))return `https://www.google.com/maps/search/${q}`;
   return `https://www.google.com/search?q=${q}`}
+async function clientCallLive(a,country,bossTask){
+  const pl=(S.clientTool&&S.clientTool.platforms&&S.clientTool.platforms.length?S.clientTool.platforms:PLATFORMS).join(', ');
+  const res=await askWeb(sysFor(a),`The boss runs an e-commerce agency (ecommwithtaha) selling Amazon private label services (product hunting, sourcing, listing optimization, PPC, account management).\nBoss's request: "${bossTask}"\nCountry: ${country}. Cities: ${CITY[country]}. Platforms to consider: ${pl}.\n\nUse Google Search to find REAL businesses that could need these services (brands selling on Amazon or likely to, e-commerce stores, DTC brands). Give 6 lead targets on different platforms. For each target list 2-3 REAL companies you actually found, with: company name, website, the page where you found them (sourceUrl), the contact page URL, and a business contact email ONLY if it is written on their own website or contact page. Never guess, construct or pattern-fill an email; if you did not see it, leave "email" empty. Only company/business emails, never personal ones.\nReply with ONLY JSON: {"summary":"","targets":[{"segment":"","platform":"","searchQuery":"","whereToFind":"","whyGoodFit":"","need":"","outreach":"short personalised email message in English","questions":"","fitScore":8,"companies":[{"name":"","website":"","sourceUrl":"","contactPage":"","email":""}]}]}`);
+  const j=parseJSON(res.text);if(!j||!Array.isArray(j.targets))throw new Error('Did not get client targets from the AI.');j.sources=res.sources;j.live=true;return j;
+}
 async function clientCall(a,country,bossTask){
+  if(!isDemo()&&S.settings.provider==='gemini')return clientCallLive(a,country,bossTask);
   if(isDemo()){await sleep(3000+Math.random()*2000);const c=CITY[country].split(', ');return{summary:`(demo) ${a.name} prepared ${country} lead targets.`,targets:[
     {segment:`Amazon private label brand owners in ${c[0]}`,platform:'LinkedIn',searchQuery:`Amazon private label brand owner ${c[0]}`,whereToFind:'LinkedIn people search, filter by location',whyGoodFit:'Owners often need PPC and listing help',outreach:'Hi! We help Amazon brands grow with product research, listings and PPC. Want a free account audit?',questions:'Monthly revenue? Biggest problem? Who runs PPC now?'},
     {segment:`E-commerce companies in ${c[1]||c[0]}`,platform:'Google Maps',searchQuery:`ecommerce company ${c[1]||c[0]}`,whereToFind:'Google Maps results that have a website',whyGoodFit:'Local sellers who could expand to Amazon',outreach:'We can take your products to Amazon end-to-end. Open to a 15-minute call?',questions:'Do you sell on Amazon yet? Which marketplace?'},
     {segment:`Amazon seller groups (${country})`,platform:'Facebook',searchQuery:`Amazon FBA sellers ${country}`,whereToFind:'Facebook groups, recent posts asking for help',whyGoodFit:'Active sellers asking questions',outreach:'Sharing a free launch checklist. Happy to review one listing for free.',questions:'How many SKUs? Monthly ad spend?'},
+    {segment:'Demo: example company record',platform:'Google',searchQuery:'example store',whereToFind:'Demo only',whyGoodFit:'Shows how a found company and its public email look in the PDF',outreach:'This is a demo outreach message.',questions:'-',companies:[{name:'Example Store (demo)',website:'https://example.com',sourceUrl:'https://example.com/about',contactPage:'https://example.com/contact',email:'hello@example.com'}]},
     {segment:'Sellers hiring Amazon PPC help',platform:'Upwork',searchQuery:'Amazon PPC manager',whereToFind:'Upwork job posts from the last 7 days',whyGoodFit:'They already have budget and a clear need',outreach:'Saw your PPC post. We manage Amazon ads for private label brands; happy to share a 3-step plan for your ASIN.',questions:'Current ACoS? Monthly ad budget?'},
     {segment:'Sellers asking for help on Reddit',platform:'Reddit',searchQuery:'amazon listing not converting',whereToFind:'r/FulfillmentByAmazon and r/AmazonSeller recent posts',whyGoodFit:'Clear pain point, open to advice',outreach:'Reply with genuinely useful advice first, then offer a free listing audit by DM.',questions:'Which marketplace? How long live?'},
     {segment:`DTC brands in ${c[0]} not yet on Amazon`,platform:'Instagram',searchQuery:'smallbusiness'+c[0].replace(/\s/g,''),whereToFind:'Instagram hashtag, brands with a shop link',whyGoodFit:'Proven product, Amazon is the next channel',outreach:'Love your products! We help brands launch on Amazon end-to-end. Open to a quick chat?',questions:'Do you sell on Amazon yet? Monthly orders?'},
@@ -1327,7 +1348,7 @@ async function clientsPipeline2(bossTask,only,auto){
   try{
     const out=await Promise.all(team.map(async([country,a])=>{
       let res;try{res=await busyWork(a,'Finding clients',()=>clientCall(a,country,bossTask+focus))}catch(e){log(a.name,helpFor(e),null,true);say(a,'Problem! See log',4000);return null}
-      res.targets=res.targets.map(t=>({...t,country,fitScore:+t.fitScore||(isDemo()?6+Math.floor(Math.random()*4):0),link:leadLink(t)}));
+      res.targets=res.targets.map(t=>({...t,country,fitScore:+t.fitScore||(isDemo()?6+Math.floor(Math.random()*4):0),link:leadLink(t)}));res.targets.forEach(t=>{t.companies=(t.companies||[]).filter(c=>c&&c.name).map(checkCompany);t.companies.forEach(c=>{c.compose=leadEmail(t,c)});const m=emailParts(t);t.emailSubject=m.subject;t.emailBody=m.full;t.email=leadEmail(t,t.companies.find(c=>c.email));t.sendTo=t.companies.map(c=>`${c.name}: ${c.email||'(no public email) '+(c.contactPage||c.website||'')}`).join(' | ')});
       res.best=[...res.targets].sort((x,y)=>(y.fitScore||0)-(x.fitScore||0))[0];
       log(a.name,`${country}: ${res.summary}\n`+res.targets.map(t=>`• ${t.segment} (${t.platform}) fit ${t.fitScore}/10`).join('\n'),a.shirt);
       if(!res.targets.length)return null;
@@ -1365,14 +1386,15 @@ function openTool(k){
     onSave=()=>{const v={asin:$('t_asin').value.trim(),market:$('t_mk').value,title:$('t_title').value,price:$('t_price').value,cat:$('t_cat').value,budget:$('t_bud').value,acos:$('t_acos').value,notes:$('t_notes').value};S.ppcTool=v;
       setTimeout(()=>runTask(`PPC plan for ASIN ${v.asin||'(none)'} on Amazon ${v.market}. Product: ${v.title}. Price: ${v.price}. Category: ${v.cat}. Daily budget: ${v.budget}. Target ACoS: ${v.acos}. Features/notes: ${v.notes}`,'ppc',curMode),60)}}
   if(k==='listtool'){const t=S.listTool||{market:'US'};
-    B.innerHTML=`<p class="note">Sana and Anum write the listing, then Bushra (SEO) and Talal (conversion) make the advanced version.</p>
-    <div class="two"><div><label>Product</label><input id="l_prod" value="${esc(t.product||'')}"></div><div><label>Brand</label><input id="l_brand" value="${esc(t.brand||'')}"></div></div>
+    B.innerHTML=`<p class="note">Hiba checks your ASIN and competitors (live on the web with Gemini), Sana writes original high-CTR copy, Anum makes images, infographics and A+, then Bushra and Talal make the advanced version.</p>
+    <div class="two"><div><label>Your ASIN (team checks it live on Amazon)</label><input id="l_asin" value="${esc(t.asin||'')}" placeholder="B0XXXXXXXX"></div><div><label>Product</label><input id="l_prod" value="${esc(t.product||'')}"></div></div>
+    <div><label>Brand</label><input id="l_brand" value="${esc(t.brand||'')}"></div>
     <div class="two"><div><label>Marketplace</label><select id="l_mk">${Object.keys(MARKETS).map(m=>`<option ${t.market===m?'selected':''}>${m}</option>`).join('')}</select></div><div><label>Target customer</label><input id="l_aud" value="${esc(t.audience||'')}"></div></div>
     <div><label>Main keywords</label><input id="l_kw" value="${esc(t.keywords||'')}"></div>
     <div><label>Features, size, material, what is in the box</label><textarea id="l_feat" rows="4">${esc(t.features||'')}</textarea></div>`;
     $('dlgSave').textContent='Save & optimize listing';
-    onSave=()=>{const v={product:$('l_prod').value,brand:$('l_brand').value,market:$('l_mk').value,audience:$('l_aud').value,keywords:$('l_kw').value,features:$('l_feat').value};S.listTool=v;
-      setTimeout(()=>runTask(`Optimize the Amazon ${v.market} listing for: ${v.product}. Brand: ${v.brand}. Target customer: ${v.audience}. Main keywords: ${v.keywords}. Features: ${v.features}`,'listing',curMode),60)}}
+    onSave=()=>{const v={asin:$('l_asin').value.trim(),product:$('l_prod').value,brand:$('l_brand').value,market:$('l_mk').value,audience:$('l_aud').value,keywords:$('l_kw').value,features:$('l_feat').value};S.listTool=v;
+      setTimeout(()=>runTask(`Optimize the Amazon ${v.market} listing for ASIN ${v.asin||'(none)'}: ${v.product}. Brand: ${v.brand}. Target customer: ${v.audience}. Main keywords: ${v.keywords}. Features: ${v.features}`,'listing',curMode),60)}}
   if(k==='clienttool'){const t=S.clientTool||{countries:['USA','UK','UAE','Pakistan'],auto:false,every:15};
     B.innerHTML=`<p class="note">The Client Hunting Department can keep hunting on its own while the office is open and AI is started. Every found lead visits reception, meets ${esc(P.manager.name)} in the Client Meeting Room, and leads that pass go to the sheet. Each auto run uses one AI call for one country.</p>
     <div><label>Countries</label><div class="toggles">${['USA','UK','UAE','Pakistan'].map(c=>`<label><input type="checkbox" class="c_cty" value="${c}" ${(t.countries||[]).includes(c)?'checked':''}> ${c}</label>`).join('')}</div></div>
@@ -1431,7 +1453,10 @@ async function ppcPipeline3(bossTask){
   const f=P.ppc,z=P.ppc2,rz=P.ppc3,h=P.ppca1,sd=P.ppca2,asin=parseAsin(bossTask),team=[f,z,rz,h,sd];team.forEach(p=>p.job=true);
   try{
     if(!asin)say(f,'ASIN nahi mila, details se plan banata hoon',3000);
-    let plan;try{plan=await busyWork(f,'Keyword research',()=>ppcCall(f,bossTask,asin))}catch(e){log(f.name,helpFor(e),null,true);return{kind:'ppc',who:'PPC',summary:'The PPC plan could not finish.',plan:null}}
+    let research=null;if(asin){research=await busyWork(f,'Checking ASIN on Amazon',()=>asinResearch(f,bossTask,asin,'Build an Amazon PPC plan for this ASIN')).catch(e=>{log(f.name,helpFor(e),null,true);return null});
+      if(research)log(f.name,`${research.live?'🔎 Live web check. ':''}${research.summary||''}\n`+(research.myListing&&research.myListing.title?`• ASIN title: ${research.myListing.title} (${research.myListing.price||'?'})\n`:'')+(research.competitors||[]).slice(0,4).map(c=>`• Competitor: ${c.title} (${c.price||'?'})`).join('\n'),f.shirt)}
+    let plan;try{plan=await busyWork(f,'Keyword research',()=>ppcCall(f,bossTask+(research?'\n\nLive Amazon research for this ASIN: '+JSON.stringify(research).slice(0,3500):'')+h10Top(),asin))}catch(e){log(f.name,helpFor(e),null,true);return{kind:'ppc',who:'PPC',summary:'The PPC plan could not finish.',plan:null}}
+    plan.research=research;
     log(f.name,`${plan.summary}\n`+plan.keywords.slice(0,10).map(k=>`• ${k.keyword} [${k.match}] ${k.bid}`).join('\n'),f.shirt);
     say(f,`${z.name}, ${rz.name}, keywords ready!`,2400);
     const [camp,tg]=await Promise.all([busyWork(z,'Building campaigns',()=>ppcCampaignCall(z,bossTask,plan,asin)).catch(e=>{log(z.name,helpFor(e),null,true);return null}),
@@ -1487,11 +1512,12 @@ function logImages(title,urls,names){const L=$('log'),d=document.createElement('
 async function listingPipeline3(bossTask){
   const h=P.lst0,s=P.listing,an=P.listing2,b1=P.lsa1,b2=P.lsa2,team=[h,s,an,b1,b2];team.forEach(p=>p.job=true);
   try{
-    let comp;try{comp=await busyWork(h,'Studying competitors',()=>competitorCall(h,bossTask))}catch(e){log(h.name,helpFor(e),null,true);comp={summary:'Competitor research could not finish.'}}
+    const asin=parseAsin(bossTask);let comp;try{comp=await busyWork(h,asin?'Checking ASIN on Amazon':'Studying competitors',()=>asin?asinResearch(h,bossTask,asin,'Rewrite our listing to beat these competitors'):competitorCall(h,bossTask))}catch(e){log(h.name,helpFor(e),null,true);comp={summary:'Competitor research could not finish.'}}
+    if(asin)comp.asin=asin;
     comp.searchLink=`https://www.amazon.com/s?k=${encodeURIComponent(comp.searchQuery||'')}`;
-    log(h.name,`${comp.summary}\n• Patterns: ${comp.patterns||'-'}\n• Weak spots: ${comp.weaknesses||'-'}`,h.shirt);
+    log(h.name,`${comp.live?'🔎 Live web check. ':''}${comp.summary}\n`+(comp.myListing&&comp.myListing.title?`• Our current title: ${comp.myListing.title}\n`:'')+(comp.competitors||[]).slice(0,5).map(c=>`• Competitor: ${c.title} (${c.price||'?'}, ${c.rating||'?'}★, ${c.reviews||'?'} reviews)`).join('\n')+`\n• Weak spots: ${comp.weaknesses||'-'}`,h.shirt);
     await handOver(h,s,`${s.name}, competitor research ready. Ab hamari listing likho!`);
-    let r;try{r=await busyWork(s,'Writing title & bullets',()=>listingCall(s,bossTask+'\n\nCompetitor research from '+h.name+': '+JSON.stringify(comp).slice(0,2500)))}catch(e){log(s.name,helpFor(e),null,true);return{kind:'listing',who:'Listing',summary:'The listing could not finish.',listings:[],comp}}
+    let r;try{r=await busyWork(s,'Writing title & bullets',()=>listingCall(s,bossTask+'\n\nCompetitor research from '+h.name+': '+JSON.stringify(comp).slice(0,3500)+h10Top()+'\n\nWRITING RULES: use the competitor research only as inspiration. Write ORIGINAL copy in your own words; never copy or closely paraphrase any competitor title, bullet or description. Make it high-CTR: main keyword first in the title, one strong benefit, a clear reason to click, and scannable bullets that start with a short CAPS benefit.'))}catch(e){log(s.name,helpFor(e),null,true);return{kind:'listing',who:'Listing',summary:'The listing could not finish.',listings:[],comp}}
     log(s.name,r.summary+'\n'+r.listings.map(l=>`✎ ${l.title}`).join('\n'),s.shirt);
     await handOver(s,an,`${an.name}, images, infographics aur A+ banao`);
     const im=await busyWork(an,'Designing images & infographics',()=>infographicPlanCall(an,bossTask,r.listings,comp)).catch(e=>{log(an.name,helpFor(e),null,true);return null});
@@ -1502,8 +1528,8 @@ async function listingPipeline3(bossTask){
     say(b1,`${b2.name}, conversion audit tum karo`,2400);
     const [seo,cro]=await Promise.all([busyWork(b1,'Advanced SEO',()=>listingAdvCall(b1,bossTask,r.listings.map(({infoImgs,...l})=>l),'seo')).catch(e=>{log(b1.name,helpFor(e),null,true);return null}),
       busyWork(b2,'Conversion audit',()=>listingAdvCall(b2,bossTask,r.listings.map(({infoImgs,...l})=>l),'cro')).catch(e=>{log(b2.name,helpFor(e),null,true);return null})]);
-    r.listings=r.listings.map((l,i)=>({...l,...((seo&&seo.items[i])||{}),...((cro&&cro.items[i])||{})}));
-    if(seo)log(b1.name,'Advanced SEO done:\n'+r.listings.map(l=>`✎ ${l.title}`).join('\n'),b1.shirt);
+    r.listings=r.listings.map((l,i)=>({...l,...((seo&&seo.items[i])||{}),...((cro&&cro.items[i])||{})}));r.listings.forEach(l=>{l.originality=originality(l,comp)});
+    if(seo)log(b1.name,'Advanced SEO done:\n'+r.listings.map(l=>`✎ ${l.title}\n  Originality: ${l.originality}`).join('\n'),b1.shirt);
     if(cro)log(b2.name,'Conversion audit done.',b2.shirt);
     await handOver(b2,b1,'Audit ready');
     await deliverToRecords(b1,'listing',[['listing',r.listings.map(({infoImgs,infographics,...l})=>({date:today(),...l}))]],'Advanced listing. Please file');showTab('listing');
@@ -1516,6 +1542,77 @@ THEMES.ppc.agents=['ppc','ppc2','ppc3','ppca1','ppca2'];
 THEMES.listing.agents=['lst0','listing','listing2','lsa1','lsa2'];
 PIPES.ppc=async t=>{const r=await ppcPipeline3(t);await deptPdf('ppc',t,r);return r};
 PIPES.listing=async t=>{const r=await listingPipeline3(t);await deptPdf('listing',t,r);return r};
+
+/* ================= LIVE WEB RESEARCH (Gemini + Google Search) ================= */
+async function askWeb(system,user){
+  const st=S.settings;
+  if(st.provider!=='gemini'){const t=await askAI(system,user+'\n\n(Live web search is not available with this AI provider. Use your own knowledge and say clearly that it was not checked live.)');return{text:t,sources:[],live:false}}
+  const model=(st.model||'gemini-flash-latest').replace(/^models\//,'');
+  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':st.key},
+    body:JSON.stringify({systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text:user}]}],tools:[{google_search:{}}],generationConfig:{temperature:0.4}})});
+  if(!r.ok)throw new Error('AI error '+r.status+': '+(await r.text()).slice(0,240));
+  const j=await r.json(),c=(j.candidates||[])[0]||{},text=((c.content||{}).parts||[]).map(p=>p.text||'').join('');
+  const sources=(((c.groundingMetadata||{}).groundingChunks)||[]).map(g=>g.web&&{title:g.web.title||'',url:g.web.uri}).filter(Boolean);
+  return{text,sources,live:true};
+}
+async function asinResearch(p,bossTask,asin,purpose){
+  if(isDemo()){await sleep(2800);return{live:false,sources:[],summary:`(demo) Checked ASIN ${asin} and its top competitors.`,myListing:{title:'Silicone Stove Gap Cover, 2 Pack',price:'$16.99',rating:'4.2',reviews:'312',category:'Kitchen & Dining'},
+    competitors:[{title:'Stove Counter Gap Cover 2 Pack, Heat Resistant',price:'$13.99',rating:'4.4',reviews:'18,200',strengths:'Strong main image, price',weaknesses:'Generic bullets, no size chart'},{title:'Silicone Gap Filler Between Stove and Counter',price:'$19.99',rating:'4.1',reviews:'2,950',strengths:'Lifestyle images',weaknesses:'Title too long, weak A+'}],
+    keywords:'stove gap cover, stove gap filler, counter gap cover, silicone stove gap cover',patterns:'Titles lead with "Silicone" and "2 Pack"; most show heat resistance.',weaknesses:'Few show exact sizes; bullets are walls of text.',imageIdeas:'Size chart, before/after crumbs, heat test image.',searchQuery:'silicone stove gap cover'}}
+  const sys=sysFor(p)+AMZ_EXPERT;
+  const ask=`Boss's request: "${bossTask}"\nASIN: ${asin}\n\nSearch the web for this exact Amazon product (amazon.com/dp/${asin}). Find its current title, brand, price, star rating, review count, category and main features. Then find 5 competitor products that rank for the same main keyword on Amazon, with their title, price, rating and review count, and judge their strengths and weaknesses. Also list the main buyer keywords, common patterns in top listings, weak spots we can beat, and image ideas.${purpose?' Purpose: '+purpose:''}\nIf you cannot find something, write "not found" instead of guessing.\nReply with ONLY JSON: {"summary":"","myListing":{"title":"","brand":"","price":"","rating":"","reviews":"","category":"","features":""},"competitors":[{"title":"","price":"","rating":"","reviews":"","strengths":"","weaknesses":""}],"keywords":"","patterns":"","weaknesses":"","imageIdeas":"","searchQuery":""}`;
+  const res=await askWeb(sys,ask);const j=parseJSON(res.text)||{summary:res.text.slice(0,600)};
+  return{...j,sources:res.sources,live:res.live};
+}
+
+/* ================= HELIUM 10 DATA (Cerebro / Magnet export) ================= */
+function parseCSV(text){const rows=[];let row=[],cell='',q=false;for(let i=0;i<text.length;i++){const ch=text[i];
+  if(q){if(ch==='"'){if(text[i+1]==='"'){cell+='"';i++}else q=false}else cell+=ch}
+  else if(ch==='"')q=true;else if(ch===','){row.push(cell);cell=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cell);rows.push(row);row=[];cell=''}else cell+=ch}
+  if(cell||row.length){row.push(cell);rows.push(row)}return rows.filter(r=>r.some(c=>String(c).trim()))}
+async function importH10(file){
+  let rows;
+  if(/\.xlsx?$/i.test(file.name)){if(!window.XLSX)throw new Error('Excel reader did not load (needs internet). Export as CSV instead.');const wb=XLSX.read(await file.arrayBuffer());rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false})}
+  else rows=parseCSV(await file.text());
+  const hi=rows.findIndex(r=>r.some(c=>/keyword/i.test(String(c)))&&r.some(c=>/search volume/i.test(String(c))));
+  if(hi<0)throw new Error('Could not find "Keyword Phrase" and "Search Volume" columns. Export from Helium 10 Cerebro or Magnet as CSV.');
+  const H=rows[hi].map(c=>String(c).trim()),col=re=>H.findIndex(h=>re.test(h));
+  const ki=col(/keyword/i),si=col(/search volume/i),ii=col(/iq/i),ci=col(/competing/i),ti=col(/title density/i);
+  const num=v=>+String(v||'').replace(/[^0-9.]/g,'')||0;
+  const out=rows.slice(hi+1).map(r=>({kw:String(r[ki]||'').trim(),sv:num(r[si]),iq:ii>=0?num(r[ii]):'',comp:ci>=0?num(r[ci]):'',td:ti>=0?num(r[ti]):''})).filter(r=>r.kw).sort((a,b)=>b.sv-a.sv).slice(0,300);
+  S.h10={file:file.name,date:new Date().toLocaleDateString(),rows:out};save();return out;
+}
+function h10Top(n=40){const d=S.h10;if(!d||!d.rows||!d.rows.length)return'';
+  return `\nREAL Helium 10 keyword data from "${d.file}" (${d.date}). Use these real search volumes instead of guessing (keyword | monthly search volume | competing products):\n`+d.rows.slice(0,n).map(r=>`${r.kw} | ${r.sv}${r.comp!==''?' | '+r.comp:''}`).join('\n')}
+function h10Label(){const d=S.h10;$('h10Btn').textContent=d&&d.rows&&d.rows.length?`📥 Helium 10: ${d.rows.length} keywords`:'📥 Helium 10 data'}
+
+/* ================= ORIGINALITY CHECK ================= */
+function shingles(t,n=4){const w=String(t||'').toLowerCase().replace(/[^a-z0-9 ]+/g,' ').split(/\s+/).filter(Boolean),s=new Set();for(let i=0;i+n<=w.length;i++)s.add(w.slice(i,i+n).join(' '));return s}
+function originality(listing,comp){const ours=shingles([listing.title,listing.bullets,listing.description].join(' ')),theirs=new Set();
+  (comp.competitors||[]).forEach(c=>shingles(c.title).forEach(x=>theirs.add(x)));const hits=[...ours].filter(x=>theirs.has(x));
+  return hits.length?`${hits.length} phrase(s) match competitors (${hits.slice(0,3).join('; ')}). Rewrite them.`:'Passed: no 4-word phrase copied from the competitor titles that were checked.'}
+
+/* ================= EMAIL (your Gmail / mail app) ================= */
+function composeUrl(subject,body,to){const e=S.email||{};const sig=e.name?`\n\nBest regards,\n${e.name}${e.company?'\n'+e.company:''}${e.phone?'\n'+e.phone:''}${e.site?'\n'+e.site:''}`:'';
+  if(e.app==='mailto')return `mailto:${encodeURIComponent(to||'')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body+sig)}`;
+  return `https://mail.google.com/mail/?view=cm&fs=1${to?'&to='+encodeURIComponent(to):''}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body+sig)}${e.from?'&authuser='+encodeURIComponent(e.from):''}`}
+function emailParts(t,company){const e=S.email||{},subject=(e.subject||'Quick idea for your Amazon brand').replace('{segment}',t.segment||'');
+  const body=`Hi${company&&company.name?' '+company.name+' team':''},\n\n${t.outreach||''}\n\n${e.offer||'Happy to share a free audit of your Amazon listing and PPC.'}`;
+  const sig=e.name?`\n\nBest regards,\n${e.name}${e.company?'\n'+e.company:''}${e.phone?'\n'+e.phone:''}${e.site?'\n'+e.site:''}`:'';return{subject,body,full:body+sig}}
+function leadEmail(t,company){const m=emailParts(t,company);return composeUrl(m.subject,m.body,company&&company.email||'')}
+const domainOf=u=>{try{return new URL(/^https?:/.test(u)?u:'https://'+u).hostname.replace(/^www\./,'').toLowerCase()}catch(e){return''}};
+const hunterLink=d=>`https://hunter.io/search/${encodeURIComponent(d)}`;
+function checkCompany(c){const em=String(c.email||'').trim().toLowerCase(),d=domainOf(c.website||'');let status='No public email found - use the contact page or Hunter.io';
+  if(em&&/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(em)){const ed=em.split('@')[1];status=d&&(ed===d||ed.endsWith('.'+d)||d.endsWith('.'+ed))?'Email matches the website domain - verify before sending':'Email domain differs from the website - double-check it';c.email=em}else c.email='';
+  return{...c,domain:d,status,hunter:d?hunterLink(d):''}}
+function openEmailSetup(){const e=S.email||{app:'gmail'},B=$('dlgBody');$('dlgTitle').textContent='Email setup';onSave=null;
+  B.innerHTML=`<p class="note">Agents write a personal email for every lead. Clicking “✉ Write email” opens your own Gmail (or mail app) with the email ready. You add the person's address and press Send yourself, so nothing is ever sent without you.</p>
+  <div class="two"><div><label>Your name</label><input id="e_name" value="${esc(e.name||'')}"></div><div><label>Company</label><input id="e_comp" value="${esc(e.company||'ecommwithtaha')}"></div></div>
+  <div class="two"><div><label>Your Gmail (to pick the right account)</label><input id="e_from" value="${esc(e.from||'')}" placeholder="you@gmail.com"></div><div><label>Open emails in</label><select id="e_app"><option value="gmail" ${e.app!=='mailto'?'selected':''}>Gmail (web)</option><option value="mailto" ${e.app==='mailto'?'selected':''}>My default mail app</option></select></div></div>
+  <div class="two"><div><label>Phone / WhatsApp</label><input id="e_phone" value="${esc(e.phone||'')}"></div><div><label>Website</label><input id="e_site" value="${esc(e.site||'')}"></div></div>
+  <div><label>Subject</label><input id="e_subj" value="${esc(e.subject||'Quick idea for your Amazon brand')}"></div>
+  <div><label>Your offer line</label><input id="e_offer" value="${esc(e.offer||'Happy to share a free audit of your Amazon listing and PPC.')}"></div>`;
+  $('dlgSave').textContent='Save';onSave=()=>{S.email={name:$('e_name').value,company:$('e_comp').value,from:$('e_from').value.trim(),app:$('e_app').value,phone:$('e_phone').value,site:$('e_site').value,subject:$('e_subj').value,offer:$('e_offer').value}};$('dlg').showModal()}
 
 /* ================= WORKFLOWS ================= */
 async function deliverToRecords(w,tab,rows,label){
@@ -1659,19 +1756,48 @@ function speak(text,p,mode,speech){
 $('micBtn').onclick=()=>{
   if(!SR){$('heard').textContent='Voice needs Chrome or Edge.';return}
   if(listening){rec.stop();return}
+  stopWake();
   window.speechSynthesis&&speechSynthesis.cancel();
   rec=new SR();rec.lang=$('lang').value;rec.interimResults=true;rec.continuous=false;let fin='';
   rec.onstart=()=>{listening=true;$('micBtn').classList.add('rec');$('heard').textContent='Listening…'};
   rec.onresult=e=>{let t='';for(const r of e.results){t+=r[0].transcript;if(r.isFinal)fin=t}$('heard').textContent=t};
   rec.onerror=e=>{$('heard').textContent=e.error==='not-allowed'?(location.protocol==='file:'?'Microphone blocked. Open this page through localhost (see help) or allow the mic in browser + Mac settings.':'Microphone blocked. Click the icon left of the address bar → Microphone → Allow.'):e.error==='network'?'Voice needs internet (Chrome sends speech to Google).':'Voice error: '+e.error};
-  rec.onend=async()=>{listening=false;$('micBtn').classList.remove('rec');
+  rec.onend=async()=>{listening=false;$('micBtn').classList.remove('rec');if(wake.on)setTimeout(startWake,700);
     const t=(fin||$('heard').textContent).trim();if(!t||t==='Listening…'||t.startsWith('Voice error')||t.startsWith('Microphone'))return;
     if(t.length<20&&/^(start|chalu|शुरू|شروع)/i.test(t)){if(!online)setOnline(true);return}
     if(t.length<20&&/^(stop|band|बंद|بند)/i.test(t)){window.speechSynthesis&&speechSynthesis.cancel();return}
     $('task').value=t;if($('autoRun').checked)handleInput(t,$('who').value)};
   rec.start();
 };
-$('lang').onchange=()=>{try{localStorage.setItem(KEY+'-lang',$('lang').value)}catch(e){}};
+$('lang').onchange=()=>{try{localStorage.setItem(KEY+'-lang',$('lang').value)}catch(e){};if(wake.on){stopWake();setTimeout(startWake,500)}};
+/* ---- "Hey AI" wake word: always listening, no clicking ---- */
+const wake={on:false,rec:null,armedUntil:0};
+const WAKE_RE=/(?:\b(?:hey|hi|hay|hai|he|ok|okay)[\s,]*(?:a\.?\s?i\b|ai\b|aye\b|eye\b|e\.?\s?i\b)|(?:हे|है|हाय|हेलो|हेय)\s*(?:एआई|ए\s?आई|ए\.आई|ai)|(?:ہے|ہائے|ہیلو|ہے\s?ے)\s*(?:اے\s?آئی|ای\s?آئی|اےآئی))/i;
+let actx=null;function chime(n=1){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();actx.resume();for(let i=0;i<n;i++){const o=actx.createOscillator(),g2=actx.createGain(),t0=actx.currentTime+i*0.16;o.frequency.value=i?1180:880;g2.gain.setValueAtTime(0.0001,t0);g2.gain.exponentialRampToValueAtTime(0.18,t0+0.02);g2.gain.exponentialRampToValueAtTime(0.0001,t0+0.14);o.connect(g2).connect(actx.destination);o.start(t0);o.stop(t0+0.15)}}catch(e){}}
+function wakeUI(msg){$('heard').innerHTML=`<span class="wake-dot ${wake.on&&wake.rec?'on':''}"></span>${esc(msg||'')}`}
+function startWake(){
+  if(!SR){wakeUI('Hands-free needs Chrome or Edge.');return}
+  if(!wake.on||wake.rec||listening)return;
+  const r=new SR();r.lang=$('lang').value;r.continuous=true;r.interimResults=false;wake.rec=r;
+  r.onstart=()=>wakeUI('Say “Hey AI”…');
+  r.onresult=e=>{for(let i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)onHeard(e.results[i][0].transcript.trim())};
+  r.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){wake.on=false;$('wakeOn').checked=false;wakeUI('Microphone blocked. Allow the mic for this site, then tick “Hey AI” again.')}};
+  r.onend=()=>{if(wake.rec===r)wake.rec=null;if(wake.on&&!listening)setTimeout(startWake,400);else wakeUI('')};
+  try{r.start()}catch(e){wake.rec=null}
+}
+function stopWake(){const r=wake.rec;wake.rec=null;if(r)try{r.abort()}catch(e){}}
+function onHeard(t){
+  if(window.speechSynthesis&&speechSynthesis.speaking)return;
+  const m=t.match(WAKE_RE);
+  if(m){const rest=t.slice(m.index+m[0].length).replace(/^[\s,.!?،۔]+/,'').trim();
+    if(rest.length>2)return runVoice(rest);
+    wake.armedUntil=Date.now()+9000;chime(1);say(P.manager,curMode==='en'?'Yes boss?':'Ji boss? Boliye',3000);wakeUI('Hey AI ✓ – boliye…');return}
+  if(Date.now()<wake.armedUntil){wake.armedUntil=0;runVoice(t)}
+}
+function runVoice(t){chime(2);wakeUI('“'+t+'”');$('task').value=t;handleInput(t,$('who').value)}
+$('wakeOn').onchange=()=>{wake.on=$('wakeOn').checked;try{localStorage.setItem(KEY+'-wake',wake.on?'1':'')}catch(e){};if(wake.on){chime(1);startWake()}else{stopWake();wakeUI('')}};
+try{if(localStorage.getItem(KEY+'-wake')){$('wakeOn').checked=true;wake.on=true;startWake();
+  const kick=()=>{if(wake.on&&!wake.rec)startWake();document.removeEventListener('click',kick)};document.addEventListener('click',kick)}}catch(e){}
 try{const l=localStorage.getItem(KEY+'-lang');if(l)$('lang').value=l}catch(e){}
 window.speechSynthesis&&speechSynthesis.getVoices();
 
@@ -1812,7 +1938,7 @@ async function handleInput(t,whoKey){
 }
 
 /* ================= START ================= */
-buildBG();renderWho();renderRoster();renderSheet();
+buildBG();renderWho();h10Label();renderRoster();renderSheet();
 document.fonts?.ready.then(()=>{buildBG();drawWires()});setTimeout(drawWires,300);
 PEOPLE0.filter(d=>!OBS.includes(d.key)&&d.key!=='recep').forEach(d=>idleLoop(P[d.key]));cafeLoop(8000);cafeLoop(20000);academyLoop();OBS.forEach((k,i)=>obLoop(P[k],4000+i*2500));drinkLoop();autoLeadLoop();
 if(window.speechSynthesis)speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices();
